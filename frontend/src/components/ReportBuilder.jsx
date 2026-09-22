@@ -336,22 +336,38 @@ const ReportBuilder = () => {
     setActiveHandle(null);
   };
 
-  const handleCropMouseDown = (e, handle = 'move') => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingCrop(true);
-    setActiveHandle(handle);
-    setDragStartPos({ x: e.clientX, y: e.clientY });
+  const getEventClientPos = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    }
+    return { x: e.clientX || 0, y: e.clientY || 0 };
   };
 
-  const handleCropMouseMove = (e) => {
+  const handleCropStart = (e, handle = 'move') => {
+    e.stopPropagation();
+    const pos = getEventClientPos(e);
+    setIsDraggingCrop(true);
+    setActiveHandle(handle);
+    setDragStartPos(pos);
+  };
+
+  const handleCropMove = (e) => {
     if (!isDraggingCrop || !cropContainerRef.current) return;
+    if (e.cancelable && e.type.startsWith('touch')) {
+      e.preventDefault();
+    }
 
+    const pos = getEventClientPos(e);
     const containerRect = cropContainerRef.current.getBoundingClientRect();
-    const deltaXPercent = ((e.clientX - dragStartPos.x) / containerRect.width) * 100;
-    const deltaYPercent = ((e.clientY - dragStartPos.y) / containerRect.height) * 100;
+    if (!containerRect.width || !containerRect.height) return;
 
-    setDragStartPos({ x: e.clientX, y: e.clientY });
+    const deltaXPercent = ((pos.x - dragStartPos.x) / containerRect.width) * 100;
+    const deltaYPercent = ((pos.y - dragStartPos.y) / containerRect.height) * 100;
+
+    setDragStartPos(pos);
 
     setCropModalState(prev => {
       let { x, y, width, height } = prev.cropBox;
@@ -388,22 +404,31 @@ const ReportBuilder = () => {
     });
   };
 
-  const handleCropMouseUp = () => {
+  const handleCropEnd = () => {
     setIsDraggingCrop(false);
     setActiveHandle(null);
   };
 
   useEffect(() => {
     if (isDraggingCrop) {
-      window.addEventListener('mousemove', handleCropMouseMove);
-      window.addEventListener('mouseup', handleCropMouseUp);
+      window.addEventListener('mousemove', handleCropMove);
+      window.addEventListener('mouseup', handleCropEnd);
+      window.addEventListener('touchmove', handleCropMove, { passive: false });
+      window.addEventListener('touchend', handleCropEnd);
+      window.addEventListener('touchcancel', handleCropEnd);
     } else {
-      window.removeEventListener('mousemove', handleCropMouseMove);
-      window.removeEventListener('mouseup', handleCropMouseUp);
+      window.removeEventListener('mousemove', handleCropMove);
+      window.removeEventListener('mouseup', handleCropEnd);
+      window.removeEventListener('touchmove', handleCropMove);
+      window.removeEventListener('touchend', handleCropEnd);
+      window.removeEventListener('touchcancel', handleCropEnd);
     }
     return () => {
-      window.removeEventListener('mousemove', handleCropMouseMove);
-      window.removeEventListener('mouseup', handleCropMouseUp);
+      window.removeEventListener('mousemove', handleCropMove);
+      window.removeEventListener('mouseup', handleCropEnd);
+      window.removeEventListener('touchmove', handleCropMove);
+      window.removeEventListener('touchend', handleCropEnd);
+      window.removeEventListener('touchcancel', handleCropEnd);
     };
   }, [isDraggingCrop, dragStartPos, activeHandle]);
 
@@ -1139,7 +1164,7 @@ const ReportBuilder = () => {
                         </div>
 
                         {/* IMAGE CONTAINER & LIVE DYNAMIC CSS TRANSFORM DISPLAY */}
-                        <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-slate-900 border border-slate-200 flex items-center justify-center">
+                        <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
                           <img 
                             src={img.previewUrl} 
                             alt="Inspection evidence" 
@@ -1147,7 +1172,7 @@ const ReportBuilder = () => {
                               transform: `scale(${img.scale}) rotate(${img.rotation}deg) ${img.flipH ? 'scaleX(-1)' : ''} ${img.flipV ? 'scaleY(-1)' : ''}`,
                               transition: 'transform 0.15s ease-out'
                             }}
-                            className="max-w-full max-h-full object-contain" 
+                            className="w-full h-full object-cover" 
                           />
 
                           {/* REORDER BUTTONS */}
@@ -1440,17 +1465,18 @@ const ReportBuilder = () => {
 
             <div 
               ref={cropContainerRef}
-              className="relative aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center select-none cursor-crosshair"
+              className="relative aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center select-none cursor-crosshair touch-none"
             >
               <img 
                 src={cropModalState.imageSrc} 
                 alt="Crop target" 
-                className="w-full h-full object-contain opacity-40 pointer-events-none" 
+                className="w-full h-full object-cover opacity-50 pointer-events-none" 
               />
               
               <div 
-                onMouseDown={(e) => handleCropMouseDown(e, 'move')}
-                className="absolute border-2 border-dashed border-sky-400 bg-sky-400/25 shadow-2xl rounded-sm cursor-move flex items-center justify-center"
+                onMouseDown={(e) => handleCropStart(e, 'move')}
+                onTouchStart={(e) => handleCropStart(e, 'move')}
+                className="absolute border-2 border-dashed border-sky-400 bg-sky-400/30 shadow-2xl rounded-sm cursor-move flex items-center justify-center touch-none"
                 style={{
                   top: `${cropModalState.cropBox.y}%`,
                   left: `${cropModalState.cropBox.x}%`,
@@ -1463,22 +1489,41 @@ const ReportBuilder = () => {
                   <span>Drag & Resize Area</span>
                 </span>
 
+                {/* Top-Left Corner Handle */}
                 <div 
-                  onMouseDown={(e) => handleCropMouseDown(e, 'tl')}
-                  className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-sky-600 rounded-sm cursor-nwse-resize shadow"
-                />
+                  onMouseDown={(e) => handleCropStart(e, 'tl')}
+                  onTouchStart={(e) => handleCropStart(e, 'tl')}
+                  className="absolute -top-3 -left-3 w-6 h-6 bg-white border-2 border-sky-600 rounded-full cursor-nwse-resize shadow-md flex items-center justify-center touch-none z-20"
+                >
+                  <div className="w-1.5 h-1.5 bg-sky-600 rounded-full" />
+                </div>
+
+                {/* Top-Right Corner Handle */}
                 <div 
-                  onMouseDown={(e) => handleCropMouseDown(e, 'tr')}
-                  className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-sky-600 rounded-sm cursor-nesw-resize shadow"
-                />
+                  onMouseDown={(e) => handleCropStart(e, 'tr')}
+                  onTouchStart={(e) => handleCropStart(e, 'tr')}
+                  className="absolute -top-3 -right-3 w-6 h-6 bg-white border-2 border-sky-600 rounded-full cursor-nesw-resize shadow-md flex items-center justify-center touch-none z-20"
+                >
+                  <div className="w-1.5 h-1.5 bg-sky-600 rounded-full" />
+                </div>
+
+                {/* Bottom-Left Corner Handle */}
                 <div 
-                  onMouseDown={(e) => handleCropMouseDown(e, 'bl')}
-                  className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-sky-600 rounded-sm cursor-nesw-resize shadow"
-                />
+                  onMouseDown={(e) => handleCropStart(e, 'bl')}
+                  onTouchStart={(e) => handleCropStart(e, 'bl')}
+                  className="absolute -bottom-3 -left-3 w-6 h-6 bg-white border-2 border-sky-600 rounded-full cursor-nesw-resize shadow-md flex items-center justify-center touch-none z-20"
+                >
+                  <div className="w-1.5 h-1.5 bg-sky-600 rounded-full" />
+                </div>
+
+                {/* Bottom-Right Corner Handle */}
                 <div 
-                  onMouseDown={(e) => handleCropMouseDown(e, 'br')}
-                  className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-sky-600 rounded-sm cursor-nwse-resize shadow"
-                />
+                  onMouseDown={(e) => handleCropStart(e, 'br')}
+                  onTouchStart={(e) => handleCropStart(e, 'br')}
+                  className="absolute -bottom-3 -right-3 w-6 h-6 bg-white border-2 border-sky-600 rounded-full cursor-nwse-resize shadow-md flex items-center justify-center touch-none z-20"
+                >
+                  <div className="w-1.5 h-1.5 bg-sky-600 rounded-full" />
+                </div>
               </div>
             </div>
 
