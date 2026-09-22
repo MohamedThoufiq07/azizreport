@@ -29,7 +29,8 @@ import {
   X,
   Check,
   Maximize2,
-  Move
+  Move,
+  Smartphone
 } from 'lucide-react';
 
 const DEFAULT_SECTIONS = [
@@ -97,6 +98,7 @@ const ReportBuilder = () => {
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
   const videoRef = useRef(null);
   const [cameraStream, setCameraStream] = useState(null);
+  const [cameraFacingMode, setCameraFacingMode] = useState('environment'); // 'environment' (rear) or 'user' (front)
 
   // Interactive Manual Crop Modal State
   const [cropModalState, setCropModalState] = useState({
@@ -203,13 +205,28 @@ const ReportBuilder = () => {
     }));
   };
 
-  // ---------------- LIVE CAMERA WEBCAM MODAL ----------------
-  const startCameraStream = async (sectionId) => {
+  // ---------------- LIVE & NATIVE CAMERA LOGIC ----------------
+  const triggerNativeCamera = (sectionId) => {
+    setActiveSectionIdForCamera(sectionId);
+    if (cameraFileRef.current) {
+      cameraFileRef.current.value = "";
+      cameraFileRef.current.click();
+    }
+  };
+
+  const startCameraStream = async (sectionId, mode = cameraFacingMode) => {
     setActiveSectionIdForCamera(sectionId);
     setIsCameraModalOpen(true);
     try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { 
+          facingMode: { ideal: mode }, 
+          width: { ideal: 1920 }, 
+          height: { ideal: 1080 } 
+        },
         audio: false
       });
       setCameraStream(stream);
@@ -217,11 +234,17 @@ const ReportBuilder = () => {
         videoRef.current.srcObject = stream;
       }
     } catch (err) {
-      console.warn("Direct MediaDevices stream unavailable. Triggering file picker.", err);
-      if (cameraFileRef.current) {
-        cameraFileRef.current.click();
-      }
+      console.warn("Direct MediaDevices stream unavailable. Triggering native mobile/device camera.", err);
+      triggerNativeCamera(sectionId);
       setIsCameraModalOpen(false);
+    }
+  };
+
+  const toggleCameraFacingMode = async () => {
+    const nextMode = cameraFacingMode === 'environment' ? 'user' : 'environment';
+    setCameraFacingMode(nextMode);
+    if (activeSectionIdForCamera) {
+      await startCameraStream(activeSectionIdForCamera, nextMode);
     }
   };
 
@@ -1270,17 +1293,33 @@ const ReportBuilder = () => {
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startCameraStream(section.id);
-                        }}
-                        className="relative z-10 mt-2 px-3 py-1.5 bg-[#003366] hover:bg-[#002244] text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
-                      >
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>Launch Camera</span>
-                      </button>
+                      <div className="flex flex-wrap items-center justify-center gap-2 mt-3 relative z-10">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerNativeCamera(section.id);
+                          }}
+                          className="px-3 py-1.5 bg-[#003366] hover:bg-[#002244] text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                          title="Open native mobile/laptop camera app directly"
+                        >
+                          <Smartphone className="w-3.5 h-3.5 text-blue-200" />
+                          <span>Native Device Camera</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startCameraStream(section.id);
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                          title="Open live web camera preview modal"
+                        >
+                          <Camera className="w-3.5 h-3.5 text-slate-600" />
+                          <span>Live Preview WebCam</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1292,44 +1331,87 @@ const ReportBuilder = () => {
 
       {/* LIVE CAMERA WEBCAM MODAL */}
       {isCameraModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden space-y-4 p-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-[#003366]" />
-                <h3 className="font-bold text-slate-900 text-base">Mobile / Live Camera Capture</h3>
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-100 text-[#003366] rounded-lg">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Live Device Camera Capture</h3>
+                  <p className="text-xs text-slate-500">
+                    Active Mode: <span className="font-semibold text-[#003366] uppercase">{cameraFacingMode === 'environment' ? 'Rear / Back Camera' : 'Front / Selfie Camera'}</span>
+                  </p>
+                </div>
               </div>
-              <button 
-                onClick={stopCameraStream} 
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleCameraFacingMode}
+                  className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Switch between Front and Rear camera"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-[#003366]" />
+                  <span>Switch Front/Back</span>
+                </button>
+
+                <button 
+                  onClick={stopCameraStream} 
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-200/60 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="relative aspect-[4/3] bg-black rounded-xl overflow-hidden flex items-center justify-center">
+            {/* Video Feed Area - Large & Responsive */}
+            <div className="relative bg-black flex items-center justify-center overflow-hidden flex-1 min-h-[350px] max-h-[60vh]">
               <video 
                 ref={videoRef} 
                 autoPlay 
                 playsInline 
-                className="w-full h-full object-cover" 
+                className="w-full h-full object-contain" 
               />
+              <div className="absolute top-3 left-3 bg-black/60 text-white text-[11px] px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 border border-white/20">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                <span>Live Stream ({cameraFacingMode === 'environment' ? 'Back' : 'Front'})</span>
+              </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button 
-                onClick={stopCameraStream} 
-                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50"
+            {/* Modal Footer Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-t border-slate-100 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => {
+                  stopCameraStream();
+                  if (activeSectionIdForCamera) {
+                    triggerNativeCamera(activeSectionIdForCamera);
+                  }
+                }}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-100 flex items-center gap-2 transition-colors cursor-pointer"
               >
-                Cancel
+                <Smartphone className="w-4 h-4 text-[#003366]" />
+                <span>Open Mobile Native Camera App</span>
               </button>
-              <button 
-                onClick={capturePhotoFromStream} 
-                className="px-5 py-2 bg-[#003366] hover:bg-[#002244] text-white rounded-xl text-xs font-semibold shadow-md flex items-center gap-2"
-              >
-                <Camera className="w-4 h-4" />
-                <span>Take Snapshot</span>
-              </button>
+
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={stopCameraStream} 
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={capturePhotoFromStream} 
+                  className="px-5 py-2.5 bg-[#003366] hover:bg-[#002244] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Take Snapshot</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
