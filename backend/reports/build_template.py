@@ -380,9 +380,16 @@ def create_template_docx(output_path="template.docx"):
 
     add_blue_section_banner(doc, "{{ section.title }}")
 
-    # Section Notes / Bullet Points
+    # Dynamic blocks loop (Notes & Image Rows rendered in position order)
+    p_blk_start = doc.add_paragraph()
+    p_blk_start.add_run("{% for block in section.blocks %}")
+
+    # --- NOTES BLOCK ---
+    p_if_notes = doc.add_paragraph()
+    p_if_notes.add_run("{% if block.type == 'notes' %}")
+
     p_note_start = doc.add_paragraph()
-    p_note_start.add_run("{% for note in section.notes %}")
+    p_note_start.add_run("{% for note in block.notes_list %}")
 
     p_note = doc.add_paragraph()
     p_note.paragraph_format.space_before = Pt(2)
@@ -396,40 +403,41 @@ def create_template_docx(output_path="template.docx"):
     p_note_end = doc.add_paragraph()
     p_note_end.add_run("{% endfor %}")
 
-    # Section Image Rows (100% Table-Free Paragraph Pair, Zero Gridlines in Word)
-    p_row_start = doc.add_paragraph()
-    p_row_start.add_run("{% for row in section.image_rows %}")
+    p_endif_notes = doc.add_paragraph()
+    p_endif_notes.add_run("{% endif %}")
 
-    # Subtitles (if sub1 or sub2)
+    # --- IMAGE ROW BLOCK ---
+    p_if_img = doc.add_paragraph()
+    p_if_img.add_run("{% if block.type == 'image_row' %}")
+
     p_sub = doc.add_paragraph()
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_sub.paragraph_format.space_before = Pt(2)
     p_sub.paragraph_format.space_after = Pt(2)
-    r_sub = p_sub.add_run("{% if row.sub1 %}{{ row.sub1 }}{% endif %}              {% if row.sub2 %}{{ row.sub2 }}{% endif %}")
+    r_sub = p_sub.add_run("{% if block.sub1 %}{{ block.sub1 }}{% endif %}              {% if block.sub2 %}{{ block.sub2 }}{% endif %}")
     r_sub.font.name = "Calibri"
     r_sub.font.size = Pt(10)
     r_sub.font.bold = True
 
-    # Images (img1 & img2 side-by-side)
     p_img = doc.add_paragraph()
     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_img.paragraph_format.space_before = Pt(2)
     p_img.paragraph_format.space_after = Pt(2)
-    p_img.add_run("{% if row.img1 %}{{ row.img1 }}{% endif %}    {% if row.img2 %}{{ row.img2 }}{% endif %}")
+    p_img.add_run("{% if block.img1 %}{{ block.img1 }}{% endif %}    {% if block.img2 %}{{ block.img2 }}{% endif %}")
 
-    # Captions (if cap1 or cap2)
     p_cap = doc.add_paragraph()
     p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_cap.paragraph_format.space_before = Pt(0)
     p_cap.paragraph_format.space_after = Pt(6)
-    r_cap = p_cap.add_run("{% if row.cap1 %}{{ row.cap1 }}{% endif %}      {% if row.cap2 %}{{ row.cap2 }}{% endif %}")
+    r_cap = p_cap.add_run("{% if block.cap1 %}{{ block.cap1 }}{% endif %}      {% if block.cap2 %}{{ block.cap2 }}{% endif %}")
     r_cap.font.name = "Calibri"
     r_cap.font.size = Pt(8.5)
 
-    p_row_end = doc.add_paragraph()
-    p_row_end.paragraph_format.space_before = Pt(0)
-    p_row_end.paragraph_format.space_after = Pt(2)
-    p_row_end.add_run("{% endfor %}")
+    p_endif_img = doc.add_paragraph()
+    p_endif_img.add_run("{% endif %}")
+
+    p_blk_end = doc.add_paragraph()
+    p_blk_end.add_run("{% endfor %}")
 
     p_sec_loop_end = doc.add_paragraph()
     p_sec_loop_end.add_run("{% endfor %}")

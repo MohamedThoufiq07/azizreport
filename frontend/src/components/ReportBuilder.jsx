@@ -155,14 +155,15 @@ const ReportBuilder = () => {
   };
 
   // ---------------- SECTION BULLET NOTES & SUBHEADINGS ----------------
-  const handleAddSectionNote = (sectionId) => {
+  const handleAddSectionNote = (sectionId, defaultPos = 'top') => {
     setSections(sections.map(sec => {
       if (sec.id === sectionId) {
         const currentNotes = sec.notes || [];
         const newNote = {
           id: `note_${Date.now()}`,
-          text: '• SEVERELY FADED TRANSFORMER NAMEPLATE.',
-          order: currentNotes.length * 2
+          text: '• ',
+          order: currentNotes.length * 2,
+          position: defaultPos
         };
         return {
           ...sec,
@@ -179,6 +180,18 @@ const ReportBuilder = () => {
         return {
           ...sec,
           notes: (sec.notes || []).map(n => n.id === noteId ? { ...n, text } : n)
+        };
+      }
+      return sec;
+    }));
+  };
+
+  const handleNotePositionChange = (sectionId, noteId, position) => {
+    setSections(sections.map(sec => {
+      if (sec.id === sectionId) {
+        return {
+          ...sec,
+          notes: (sec.notes || []).map(n => n.id === noteId ? { ...n, position } : n)
         };
       }
       return sec;
@@ -680,7 +693,8 @@ const ReportBuilder = () => {
           order: sIdx,
           notes: (sec.notes || []).map((n, nIdx) => ({
             text: n.text,
-            order: n.order !== undefined ? n.order : nIdx * 2
+            order: n.order !== undefined ? n.order : nIdx * 2,
+            position: n.position || 'top'
           })),
           images: sec.images.map((img, iIdx) => ({
             subtitle: img.subtitle,
@@ -1140,40 +1154,58 @@ const ReportBuilder = () => {
                         <span>Section Subheadings & Bullet Points</span>
                       </div>
                       {section.notes.map((note, nIdx) => (
-                        <div key={note.id} className="flex items-start gap-2 bg-emerald-50/60 border border-emerald-200 rounded-lg p-2.5">
-                          <span className="text-emerald-700 font-bold text-sm flex-shrink-0 mt-1">•</span>
-                          <textarea
-                            value={note.text}
-                            onChange={(e) => handleNoteTextChange(section.id, note.id, e.target.value)}
-                            placeholder="Type bullet point (•), subheading, or text note..."
-                            rows={2}
-                            className="flex-1 bg-white border border-emerald-200 rounded-md p-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y"
-                          />
-                          <div className="flex flex-col gap-1 flex-shrink-0">
-                            <button
-                              onClick={() => handleReorderNote(section.id, nIdx, -1)}
-                              disabled={nIdx === 0}
-                              className="p-1 text-slate-500 hover:text-emerald-700 disabled:opacity-30 rounded hover:bg-emerald-100/50"
-                              title="Move Up"
+                        <div key={note.id} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 bg-emerald-50/60 border border-emerald-200 rounded-lg p-2.5">
+                          <div className="flex items-start gap-1.5 flex-1">
+                            <span className="text-emerald-700 font-bold text-sm flex-shrink-0 mt-1">•</span>
+                            <textarea
+                              value={note.text}
+                              onChange={(e) => handleNoteTextChange(section.id, note.id, e.target.value)}
+                              placeholder="Type bullet point (•), subheading, or text note..."
+                              rows={2}
+                              className="w-full bg-white border border-emerald-200 rounded-md p-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-y"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-shrink-0 self-end sm:self-start">
+                            <select
+                              value={note.position || 'top'}
+                              onChange={(e) => handleNotePositionChange(section.id, note.id, e.target.value)}
+                              className="bg-white border border-emerald-300 text-emerald-900 font-semibold text-[11px] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-sm"
+                              title="Set note placement in PDF & Word report"
                             >
-                              <ArrowLeft className="w-3.5 h-3.5 rotate-90" />
-                            </button>
+                              <option value="top">⬆️ Above Photos</option>
+                              <option value="after_row_0">📸 Below 2 Photos (Pair 1)</option>
+                              <option value="after_row_1">📸 Below 4 Photos (Pair 2)</option>
+                              <option value="after_images">⬇️ Below All Photos</option>
+                            </select>
+
+                            <div className="flex items-center gap-0.5 bg-white border border-emerald-200 rounded-lg p-0.5">
+                              <button
+                                onClick={() => handleReorderNote(section.id, nIdx, -1)}
+                                disabled={nIdx === 0}
+                                className="p-1 text-slate-500 hover:text-emerald-700 disabled:opacity-30 rounded hover:bg-emerald-100/50"
+                                title="Move Up"
+                              >
+                                <ArrowLeft className="w-3.5 h-3.5 rotate-90" />
+                              </button>
+                              <button
+                                onClick={() => handleReorderNote(section.id, nIdx, 1)}
+                                disabled={nIdx === section.notes.length - 1}
+                                className="p-1 text-slate-500 hover:text-emerald-700 disabled:opacity-30 rounded hover:bg-emerald-100/50"
+                                title="Move Down"
+                              >
+                                <ArrowRight className="w-3.5 h-3.5 rotate-90" />
+                              </button>
+                            </div>
+
                             <button
-                              onClick={() => handleReorderNote(section.id, nIdx, 1)}
-                              disabled={nIdx === section.notes.length - 1}
-                              className="p-1 text-slate-500 hover:text-emerald-700 disabled:opacity-30 rounded hover:bg-emerald-100/50"
-                              title="Move Down"
+                              onClick={() => handleRemoveNote(section.id, note.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                              title="Remove Note"
                             >
-                              <ArrowRight className="w-3.5 h-3.5 rotate-90" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                          <button
-                            onClick={() => handleRemoveNote(section.id, note.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors flex-shrink-0"
-                            title="Remove Note"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
                       ))}
                     </div>

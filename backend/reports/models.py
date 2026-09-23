@@ -57,12 +57,13 @@ class SectionNote(models.Model):
     )
     text = models.TextField()
     order = models.PositiveIntegerField(default=0)
+    position = models.CharField(max_length=50, default='top', blank=True)
 
     class Meta:
         ordering = ['order']
 
     def __str__(self):
-        return f"Note #{self.order} for {self.section.title}"
+        return f"Note #{self.order} ({self.position}) for {self.section.title}"
 
 
 class SectionImage(models.Model):

@@ -76,15 +76,18 @@ class InspectionReportViewSet(viewsets.ModelViewSet):
                 if isinstance(note_item, dict):
                     note_text = note_item.get('text', '')
                     note_order = note_item.get('order', n_idx)
+                    note_position = note_item.get('position', 'top')
                 else:
                     note_text = str(note_item)
                     note_order = n_idx
+                    note_position = 'top'
 
                 if note_text.strip():
                     SectionNote.objects.create(
                         section=section,
                         text=note_text.strip(),
-                        order=note_order
+                        order=note_order,
+                        position=note_position
                     )
 
             images_meta = sec_dict.get('images', [])

@@ -44,7 +44,10 @@ def generate_report_docx(report, template_path, output_docx_path):
 
     sections_data = []
     for sec in report.sections.all().order_by('order'):
-        notes_data = []
+        top_notes = []
+        bottom_notes = []
+        row_notes = {}
+
         for n in sec.notes.all().order_by('order'):
             raw_text = n.text.strip()
             lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
@@ -52,7 +55,20 @@ def generate_report_docx(report, template_path, output_docx_path):
                 text_val = line
                 if text_val and not (text_val.startswith('•') or text_val.startswith('-') or (len(text_val) > 2 and text_val[0].isdigit() and text_val[1] in ['.', ')'])):
                     text_val = f"•  {text_val}"
-                notes_data.append({'text': text_val})
+
+                pos = getattr(n, 'position', 'top') or 'top'
+                note_obj = {'text': text_val}
+                
+                if pos in ['bottom', 'after_images']:
+                    bottom_notes.append(note_obj)
+                elif pos.startswith('after_row_'):
+                    try:
+                        r_idx = int(pos.replace('after_row_', ''))
+                        row_notes.setdefault(r_idx, []).append(note_obj)
+                    except ValueError:
+                        bottom_notes.append(note_obj)
+                else:
+                    top_notes.append(note_obj)
 
         images = list(sec.images.all().order_by('order'))
         image_rows = []
@@ -78,10 +94,25 @@ def generate_report_docx(report, template_path, output_docx_path):
                 'cap2': img_item2.caption if img_item2 else ""
             })
 
+        blocks = []
+        if top_notes:
+            blocks.append({'type': 'notes', 'notes_list': top_notes})
+
+        for r_idx, r_data in enumerate(image_rows):
+            blocks.append({'type': 'image_row', **r_data})
+            if r_idx in row_notes:
+                blocks.append({'type': 'notes', 'notes_list': row_notes[r_idx]})
+
+        if bottom_notes:
+            blocks.append({'type': 'notes', 'notes_list': bottom_notes})
+
+        all_notes = top_notes + [n for r_list in row_notes.values() for n in r_list] + bottom_notes
+
         sections_data.append({
             'title': sec.title,
-            'notes': notes_data,
-            'image_rows': image_rows
+            'notes': all_notes,
+            'image_rows': image_rows,
+            'blocks': blocks
         })
 
     date_str = str(report.date_of_inspection) if report.date_of_inspection else ""
