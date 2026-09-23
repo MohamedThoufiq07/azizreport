@@ -24,6 +24,8 @@ import {
   ZoomOut,
   ArrowLeft,
   ArrowRight,
+  ChevronUp,
+  ChevronDown,
   Type,
   Crop,
   X,
@@ -36,6 +38,7 @@ import {
 const DEFAULT_SECTIONS = [
   "3. Civil",
   "3.2 Transformers",
+  "3.3 Switchgear",
   "4. Partial Discharge",
   "5. Thermal Image",
   "6. Photos of Defect Findings"
@@ -139,6 +142,16 @@ const ReportBuilder = () => {
 
   const handleSectionTitleChange = (sectionId, newTitle) => {
     setSections(sections.map(s => s.id === sectionId ? { ...s, title: newTitle } : s));
+  };
+
+  const handleReorderSection = (sIdx, direction) => {
+    const targetIdx = sIdx + direction;
+    if (targetIdx < 0 || targetIdx >= sections.length) return;
+    const updated = [...sections];
+    const temp = updated[sIdx];
+    updated[sIdx] = updated[targetIdx];
+    updated[targetIdx] = temp;
+    setSections(updated.map((sec, idx) => ({ ...sec, order: idx })));
   };
 
   // ---------------- SECTION BULLET NOTES & SUBHEADINGS ----------------
@@ -1081,6 +1094,25 @@ const ReportBuilder = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
+                        <button
+                          onClick={() => handleReorderSection(sIdx, -1)}
+                          disabled={sIdx === 0}
+                          className="p-1 text-slate-600 hover:text-[#003366] hover:bg-blue-50 disabled:opacity-25 rounded transition-colors"
+                          title="Move Section Up"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleReorderSection(sIdx, 1)}
+                          disabled={sIdx === sections.length - 1}
+                          className="p-1 text-slate-600 hover:text-[#003366] hover:bg-blue-50 disabled:opacity-25 rounded transition-colors"
+                          title="Move Section Down"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+
                       <button
                         onClick={() => handleAddSectionNote(section.id)}
                         className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold transition-all shadow-sm"

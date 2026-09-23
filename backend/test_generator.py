@@ -41,6 +41,8 @@ def test_generator():
     sec2 = ReportSection.objects.create(report=report, title="3.2 Transformers", order=1)
     SectionImage.objects.create(section=sec2, image="uploads/inspection_images/test_sample.jpg", caption="Transformer T1 Red Phase Bushing", order=0)
 
+    sec3 = ReportSection.objects.create(report=report, title="3.3 Switchgear", order=2)
+
     template_path = get_template_path()
     output_dir = get_generated_dir()
     docx_path = os.path.join(output_dir, f"Test_Report_{report.substation_id}.docx")

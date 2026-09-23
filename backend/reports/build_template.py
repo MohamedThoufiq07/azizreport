@@ -372,11 +372,11 @@ def create_template_docx(output_path="template.docx"):
     r_right.font.name = "Calibri"
     r_right.font.size = Pt(10.5)
 
-    doc.add_page_break()
-
     # ---------------- PAGE 3+: DYNAMIC SECTIONS & PHOTO EVIDENCE (100% TABLE-FREE) ----------------
     p_sec_loop_start = doc.add_paragraph()
     p_sec_loop_start.add_run("{% for section in sections %}")
+
+    doc.add_page_break()
 
     add_blue_section_banner(doc, "{{ section.title }}")
 
