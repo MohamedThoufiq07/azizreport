@@ -79,11 +79,11 @@ def generate_report_docx(report, template_path, output_docx_path):
 
             inline_img1 = None
             if img_item1 and img_item1.image and os.path.exists(img_item1.image.path):
-                inline_img1 = InlineImage(doc, img_item1.image.path, width=Inches(3.2), height=Inches(2.25))
+                inline_img1 = InlineImage(doc, img_item1.image.path, width=Inches(3.3), height=Inches(2.1))
 
             inline_img2 = None
             if img_item2 and img_item2.image and os.path.exists(img_item2.image.path):
-                inline_img2 = InlineImage(doc, img_item2.image.path, width=Inches(3.2), height=Inches(2.25))
+                inline_img2 = InlineImage(doc, img_item2.image.path, width=Inches(3.3), height=Inches(2.1))
 
             image_rows.append({
                 'sub1': img_item1.subtitle if img_item1 else "",

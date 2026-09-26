@@ -1174,8 +1174,9 @@ const ReportBuilder = () => {
                               title="Set note placement in PDF & Word report"
                             >
                               <option value="top">⬆️ Above Photos</option>
-                              <option value="after_row_0">📸 Below 2 Photos (Pair 1)</option>
-                              <option value="after_row_1">📸 Below 4 Photos (Pair 2)</option>
+                              <option value="after_row_0">📸 Below 2 Photos</option>
+                              <option value="after_row_1">📸 Below 4 Photos</option>
+                              <option value="after_row_2">📸 Below 6 Photos</option>
                               <option value="after_images">⬇️ Below All Photos</option>
                             </select>
 

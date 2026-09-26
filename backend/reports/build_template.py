@@ -131,11 +131,11 @@ def get_logo_paths():
 def create_template_docx(output_path="template.docx"):
     doc = Document()
     
-    # Page setup - Standard A4 with exact tight top/bottom margins matching reference photos 1 & 2
+    # Page setup - Standard A4 with top margin 0.95 in to give clear gap below header table
     section = doc.sections[0]
     section.page_width = Inches(8.27)
     section.page_height = Inches(11.69)
-    section.top_margin = Inches(0.4)
+    section.top_margin = Inches(0.95)
     section.bottom_margin = Inches(0.4)
     section.left_margin = Inches(0.5)
     section.right_margin = Inches(0.5)
@@ -372,7 +372,7 @@ def create_template_docx(output_path="template.docx"):
     r_right.font.name = "Calibri"
     r_right.font.size = Pt(10.5)
 
-    # ---------------- PAGE 3+: DYNAMIC SECTIONS & PHOTO EVIDENCE (100% TABLE-FREE) ----------------
+    # ---------------- PAGE 3+: DYNAMIC SECTIONS & PHOTO EVIDENCE ----------------
     p_sec_loop_start = doc.add_paragraph()
     p_sec_loop_start.add_run("{% for section in sections %}")
 
@@ -406,32 +406,71 @@ def create_template_docx(output_path="template.docx"):
     p_endif_notes = doc.add_paragraph()
     p_endif_notes.add_run("{% endif %}")
 
-    # --- IMAGE ROW BLOCK ---
+    # --- IMAGE ROW BLOCK (2 COLUMNS TABLE WITH LEFT-ALIGNED TEXT TOP OF IMAGE) ---
     p_if_img = doc.add_paragraph()
     p_if_img.add_run("{% if block.type == 'image_row' %}")
 
-    p_sub = doc.add_paragraph()
-    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_sub.paragraph_format.space_before = Pt(2)
-    p_sub.paragraph_format.space_after = Pt(2)
-    r_sub = p_sub.add_run("{% if block.sub1 %}{{ block.sub1 }}{% endif %}              {% if block.sub2 %}{{ block.sub2 }}{% endif %}")
-    r_sub.font.name = "Calibri"
-    r_sub.font.size = Pt(10)
-    r_sub.font.bold = True
+    # Create 2-column table for exact left alignment of titles directly above images
+    img_row_tbl = doc.add_table(rows=1, cols=2)
+    img_row_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    img_row_tbl.autofit = False
+    remove_table_borders(img_row_tbl)
 
-    p_img = doc.add_paragraph()
-    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_img.paragraph_format.space_before = Pt(2)
-    p_img.paragraph_format.space_after = Pt(2)
-    p_img.add_run("{% if block.img1 %}{{ block.img1 }}{% endif %}    {% if block.img2 %}{{ block.img2 }}{% endif %}")
+    cell_l = img_row_tbl.rows[0].cells[0]
+    cell_r = img_row_tbl.rows[0].cells[1]
+    cell_l.width = Inches(3.55)
+    cell_r.width = Inches(3.55)
 
-    p_cap = doc.add_paragraph()
-    p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_cap.paragraph_format.space_before = Pt(0)
-    p_cap.paragraph_format.space_after = Pt(6)
-    r_cap = p_cap.add_run("{% if block.cap1 %}{{ block.cap1 }}{% endif %}      {% if block.cap2 %}{{ block.cap2 }}{% endif %}")
-    r_cap.font.name = "Calibri"
-    r_cap.font.size = Pt(8.5)
+    set_cell_margins(cell_l, top=20, bottom=40, left=20, right=40)
+    set_cell_margins(cell_r, top=20, bottom=40, left=40, right=20)
+
+    # Left Column: Title (Top Left), Image, Caption
+    p_sub1 = cell_l.paragraphs[0]
+    p_sub1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_sub1.paragraph_format.space_before = Pt(2)
+    p_sub1.paragraph_format.space_after = Pt(2)
+    r_sub1 = p_sub1.add_run("{% if block.sub1 %}{{ block.sub1 }}{% endif %}")
+    r_sub1.font.name = "Calibri"
+    r_sub1.font.size = Pt(10)
+    r_sub1.font.bold = True
+
+    p_img1 = cell_l.add_paragraph()
+    p_img1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_img1.paragraph_format.space_before = Pt(0)
+    p_img1.paragraph_format.space_after = Pt(2)
+    p_img1.add_run("{% if block.img1 %}{{ block.img1 }}{% endif %}")
+
+    p_cap1 = cell_l.add_paragraph()
+    p_cap1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_cap1.paragraph_format.space_before = Pt(0)
+    p_cap1.paragraph_format.space_after = Pt(4)
+    r_cap1 = p_cap1.add_run("{% if block.cap1 %}{{ block.cap1 }}{% endif %}")
+    r_cap1.font.name = "Calibri"
+    r_cap1.font.size = Pt(8.5)
+
+    # Right Column: Title (Top Left), Image, Caption
+    p_sub2 = cell_r.paragraphs[0]
+    p_sub2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_sub2.paragraph_format.space_before = Pt(2)
+    p_sub2.paragraph_format.space_after = Pt(2)
+    r_sub2 = p_sub2.add_run("{% if block.sub2 %}{{ block.sub2 }}{% endif %}")
+    r_sub2.font.name = "Calibri"
+    r_sub2.font.size = Pt(10)
+    r_sub2.font.bold = True
+
+    p_img2 = cell_r.add_paragraph()
+    p_img2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_img2.paragraph_format.space_before = Pt(0)
+    p_img2.paragraph_format.space_after = Pt(2)
+    p_img2.add_run("{% if block.img2 %}{{ block.img2 }}{% endif %}")
+
+    p_cap2 = cell_r.add_paragraph()
+    p_cap2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_cap2.paragraph_format.space_before = Pt(0)
+    p_cap2.paragraph_format.space_after = Pt(4)
+    r_cap2 = p_cap2.add_run("{% if block.cap2 %}{{ block.cap2 }}{% endif %}")
+    r_cap2.font.name = "Calibri"
+    r_cap2.font.size = Pt(8.5)
 
     p_endif_img = doc.add_paragraph()
     p_endif_img.add_run("{% endif %}")
