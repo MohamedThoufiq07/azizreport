@@ -90,18 +90,29 @@ def remove_table_borders(table):
     tblPr.append(borders)
 
 
-def add_blue_section_banner(doc, title_text):
+def add_blue_section_banner(doc, title_text, is_subtitle=False):
     """
     Adds soft blue section banner matching reference screenshots 1 & 2.
     Width: 5.6" left-aligned banner (not full width), positioned near header.
+    If is_subtitle, indented slightly to match Screenshot 2 and 3.
     """
-    table = doc.add_table(rows=1, cols=1)
+    table = doc.add_table(rows=1, cols=2 if is_subtitle else 1)
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
     remove_table_borders(table)
-    cell = table.rows[0].cells[0]
-    cell.width = Inches(5.6)
-    set_cell_background(cell, "B4C6E7") # Soft pastel blue matching photo 1 & 2
-    set_cell_margins(cell, top=60, bottom=60, left=140, right=140)
+    if is_subtitle:
+        cell_spacer = table.rows[0].cells[0]
+        cell_spacer.width = Inches(0.35)
+        set_cell_margins(cell_spacer, top=0, bottom=0, left=0, right=0)
+        
+        cell = table.rows[0].cells[1]
+        cell.width = Inches(5.25)
+        set_cell_background(cell, "B4C6E7")
+        set_cell_margins(cell, top=50, bottom=50, left=120, right=120)
+    else:
+        cell = table.rows[0].cells[0]
+        cell.width = Inches(5.6)
+        set_cell_background(cell, "B4C6E7") # Soft pastel blue matching photo 1 & 2
+        set_cell_margins(cell, top=60, bottom=60, left=140, right=140)
     
     p = cell.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -109,7 +120,7 @@ def add_blue_section_banner(doc, title_text):
     p.paragraph_format.space_after = Pt(0)
     run = p.add_run(title_text)
     run.font.name = "Calibri"
-    run.font.size = Pt(12)
+    run.font.size = Pt(11 if is_subtitle else 12)
     run.font.bold = True
     run.font.color.rgb = RGBColor(0, 0, 0)
     
@@ -227,14 +238,14 @@ def create_template_docx(output_path="template.docx"):
     f_run1.font.color.rgb = RGBColor(89, 89, 89)
 
     # Right Footer: Page X of Y & DELTA STAR
-    f_tab = fp.add_run("\tPage")
+    f_tab = fp.add_run("\tPage ")
     f_tab.font.name = "Calibri"
     f_tab.font.size = Pt(9.5)
     f_tab.font.color.rgb = RGBColor(89, 89, 89)
 
     add_word_field(fp, "PAGE")
 
-    f_of = fp.add_run("of")
+    f_of = fp.add_run(" of ")
     f_of.font.name = "Calibri"
     f_of.font.size = Pt(9.5)
     f_of.font.color.rgb = RGBColor(89, 89, 89)
@@ -372,114 +383,439 @@ def create_template_docx(output_path="template.docx"):
     r_right.font.name = "Calibri"
     r_right.font.size = Pt(10.5)
 
-    # ---------------- PAGE 3+: DYNAMIC SECTIONS & PHOTO EVIDENCE ----------------
-    p_sec_loop_start = doc.add_paragraph()
-    p_sec_loop_start.add_run("{% for section in sections %}")
+    # ---------------- PAGE 3+: DYNAMIC PER-PAGE PHOTO EVIDENCE & AUTO-FIT LAYOUTS ----------------
+    p_pg_loop_start = doc.add_paragraph()
+    p_pg_loop_start.add_run("{% for page in pages %}")
 
-    doc.add_page_break()
+    # Add page break between pages (first page is already placed on Page 3 after Summary of Findings)
+    p_pb = doc.add_paragraph()
+    p_pb.add_run("{% if not loop.first %}")
+    p_pb.add_run()._r.append(parse_xml(r'<w:br %s w:type="page"/>' % nsdecls('w')))
+    p_pb.add_run("{% endif %}")
 
-    add_blue_section_banner(doc, "{{ section.title }}")
+    # Section Title Banner (Rendered on first page of a section)
+    p_sec_if = doc.add_paragraph()
+    p_sec_if.add_run("{% if page.is_first_page_of_section and page.section_title %}")
+    add_blue_section_banner(doc, "{{ page.section_title }}", is_subtitle=False)
+    p_sec_end = doc.add_paragraph()
+    p_sec_end.add_run("{% endif %}")
 
-    # Dynamic blocks loop (Notes & Image Rows rendered in position order)
-    p_blk_start = doc.add_paragraph()
-    p_blk_start.add_run("{% for block in section.blocks %}")
+    # Subtitle Banner (e.g. 3.1 Substation Outside or 3.2 SWITCH GEAR)
+    p_sub_if = doc.add_paragraph()
+    p_sub_if.add_run("{% if page.subtitle %}")
+    add_blue_section_banner(doc, "{{ page.subtitle }}", is_subtitle=True)
+    p_sub_end = doc.add_paragraph()
+    p_sub_end.add_run("{% endif %}")
 
-    # --- NOTES BLOCK ---
-    p_if_notes = doc.add_paragraph()
-    p_if_notes.add_run("{% if block.type == 'notes' %}")
+    # Clean spacing gap between titles and content - never merge title with content
+    p_gap = doc.add_paragraph()
+    p_gap.paragraph_format.space_before = Pt(4)
+    p_gap.paragraph_format.space_after = Pt(8)
 
+    # Bullet point notes (if any on this page)
+    p_notes_if = doc.add_paragraph()
+    p_notes_if.add_run("{% if page.notes %}")
     p_note_start = doc.add_paragraph()
-    p_note_start.add_run("{% for note in block.notes_list %}")
-
+    p_note_start.add_run("{% for note in page.notes %}")
     p_note = doc.add_paragraph()
     p_note.paragraph_format.space_before = Pt(2)
     p_note.paragraph_format.space_after = Pt(4)
-    p_note.paragraph_format.left_indent = Inches(0.3)
-    r_note = p_note.add_run("{{ note.text }}")
-    r_note.font.name = "Calibri"
-    r_note.font.size = Pt(11)
-    r_note.font.bold = True
-
+    p_note.paragraph_format.left_indent = Inches(0.2)
+    r_n = p_note.add_run("{{ note.text }}")
+    r_n.font.name = "Calibri"
+    r_n.font.size = Pt(11)
+    r_n.font.bold = True
     p_note_end = doc.add_paragraph()
     p_note_end.add_run("{% endfor %}")
+    p_notes_endif = doc.add_paragraph()
+    p_notes_endif.add_run("{% endif %}")
 
-    p_endif_notes = doc.add_paragraph()
-    p_endif_notes.add_run("{% endif %}")
+    # ================= LAYOUT 1: SINGLE FULL-WIDTH PHOTO =================
+    p_l1_if = doc.add_paragraph()
+    p_l1_if.add_run("{% if page.layout == '1_full' %}")
 
-    # --- IMAGE ROW BLOCK (2 COLUMNS TABLE WITH LEFT-ALIGNED TEXT TOP OF IMAGE) ---
-    p_if_img = doc.add_paragraph()
-    p_if_img.add_run("{% if block.type == 'image_row' %}")
+    p_l1_sub = doc.add_paragraph()
+    p_l1_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l1_sub.paragraph_format.space_before = Pt(0)
+    p_l1_sub.paragraph_format.space_after = Pt(2)
+    r_l1_s = p_l1_sub.add_run("{% if page.sub1 %}{{ page.sub1 }}{% endif %}")
+    r_l1_s.font.name = "Calibri"
+    r_l1_s.font.size = Pt(10)
+    r_l1_s.font.bold = True
 
-    # Create 2-column table for exact left alignment of titles directly above images
-    img_row_tbl = doc.add_table(rows=1, cols=2)
-    img_row_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    img_row_tbl.autofit = False
-    remove_table_borders(img_row_tbl)
+    p_l1_img = doc.add_paragraph()
+    p_l1_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l1_img.paragraph_format.space_before = Pt(0)
+    p_l1_img.paragraph_format.space_after = Pt(2)
+    p_l1_img.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
 
-    cell_l = img_row_tbl.rows[0].cells[0]
-    cell_r = img_row_tbl.rows[0].cells[1]
-    cell_l.width = Inches(3.55)
-    cell_r.width = Inches(3.55)
+    p_l1_cap = doc.add_paragraph()
+    p_l1_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l1_cap.paragraph_format.space_before = Pt(0)
+    p_l1_cap.paragraph_format.space_after = Pt(4)
+    r_l1_c = p_l1_cap.add_run("{% if page.cap1 %}{{ page.cap1 }}{% endif %}")
+    r_l1_c.font.name = "Calibri"
+    r_l1_c.font.size = Pt(8.5)
 
-    set_cell_margins(cell_l, top=20, bottom=40, left=20, right=40)
-    set_cell_margins(cell_r, top=20, bottom=40, left=40, right=20)
+    p_l1_end = doc.add_paragraph()
+    p_l1_end.add_run("{% endif %}")
 
-    # Left Column: Title (Top Left), Image, Caption
-    p_sub1 = cell_l.paragraphs[0]
-    p_sub1.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_sub1.paragraph_format.space_before = Pt(2)
-    p_sub1.paragraph_format.space_after = Pt(2)
-    r_sub1 = p_sub1.add_run("{% if block.sub1 %}{{ block.sub1 }}{% endif %}")
-    r_sub1.font.name = "Calibri"
-    r_sub1.font.size = Pt(10)
-    r_sub1.font.bold = True
+    # ================= LAYOUT 2: 2 PHOTOS VERTICALLY STACKED (MATCHES SCREENSHOT 2) =================
+    p_l2_if = doc.add_paragraph()
+    p_l2_if.add_run("{% if page.layout == '2_stack' %}")
 
-    p_img1 = cell_l.add_paragraph()
-    p_img1.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_img1.paragraph_format.space_before = Pt(0)
-    p_img1.paragraph_format.space_after = Pt(2)
-    p_img1.add_run("{% if block.img1 %}{{ block.img1 }}{% endif %}")
+    # Top Photo (Photo 1)
+    p_l2_sub1 = doc.add_paragraph()
+    p_l2_sub1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l2_sub1.paragraph_format.space_before = Pt(0)
+    p_l2_sub1.paragraph_format.space_after = Pt(2)
+    r_l2_s1 = p_l2_sub1.add_run("{% if page.sub1 %}{{ page.sub1 }}{% endif %}")
+    r_l2_s1.font.name = "Calibri"
+    r_l2_s1.font.size = Pt(10)
+    r_l2_s1.font.bold = True
 
-    p_cap1 = cell_l.add_paragraph()
-    p_cap1.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_cap1.paragraph_format.space_before = Pt(0)
-    p_cap1.paragraph_format.space_after = Pt(4)
-    r_cap1 = p_cap1.add_run("{% if block.cap1 %}{{ block.cap1 }}{% endif %}")
-    r_cap1.font.name = "Calibri"
-    r_cap1.font.size = Pt(8.5)
+    p_l2_img1 = doc.add_paragraph()
+    p_l2_img1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l2_img1.paragraph_format.space_before = Pt(0)
+    p_l2_img1.paragraph_format.space_after = Pt(2)
+    p_l2_img1.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
 
-    # Right Column: Title (Top Left), Image, Caption
-    p_sub2 = cell_r.paragraphs[0]
-    p_sub2.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_sub2.paragraph_format.space_before = Pt(2)
-    p_sub2.paragraph_format.space_after = Pt(2)
-    r_sub2 = p_sub2.add_run("{% if block.sub2 %}{{ block.sub2 }}{% endif %}")
-    r_sub2.font.name = "Calibri"
-    r_sub2.font.size = Pt(10)
-    r_sub2.font.bold = True
+    p_l2_cap1 = doc.add_paragraph()
+    p_l2_cap1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l2_cap1.paragraph_format.space_before = Pt(0)
+    p_l2_cap1.paragraph_format.space_after = Pt(6) # Small neat gap between the 2 stacked photos
+    r_l2_c1 = p_l2_cap1.add_run("{% if page.cap1 %}{{ page.cap1 }}{% endif %}")
+    r_l2_c1.font.name = "Calibri"
+    r_l2_c1.font.size = Pt(8.5)
 
-    p_img2 = cell_r.add_paragraph()
-    p_img2.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_img2.paragraph_format.space_before = Pt(0)
-    p_img2.paragraph_format.space_after = Pt(2)
-    p_img2.add_run("{% if block.img2 %}{{ block.img2 }}{% endif %}")
+    # Bottom Photo (Photo 2)
+    p_l2_sub2 = doc.add_paragraph()
+    p_l2_sub2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l2_sub2.paragraph_format.space_before = Pt(0)
+    p_l2_sub2.paragraph_format.space_after = Pt(2)
+    r_l2_s2 = p_l2_sub2.add_run("{% if page.sub2 %}{{ page.sub2 }}{% endif %}")
+    r_l2_s2.font.name = "Calibri"
+    r_l2_s2.font.size = Pt(10)
+    r_l2_s2.font.bold = True
 
-    p_cap2 = cell_r.add_paragraph()
-    p_cap2.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_cap2.paragraph_format.space_before = Pt(0)
-    p_cap2.paragraph_format.space_after = Pt(4)
-    r_cap2 = p_cap2.add_run("{% if block.cap2 %}{{ block.cap2 }}{% endif %}")
-    r_cap2.font.name = "Calibri"
-    r_cap2.font.size = Pt(8.5)
+    p_l2_img2 = doc.add_paragraph()
+    p_l2_img2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l2_img2.paragraph_format.space_before = Pt(0)
+    p_l2_img2.paragraph_format.space_after = Pt(2)
+    p_l2_img2.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
 
-    p_endif_img = doc.add_paragraph()
-    p_endif_img.add_run("{% endif %}")
+    p_l2_cap2 = doc.add_paragraph()
+    p_l2_cap2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l2_cap2.paragraph_format.space_before = Pt(0)
+    p_l2_cap2.paragraph_format.space_after = Pt(4)
+    r_l2_c2 = p_l2_cap2.add_run("{% if page.cap2 %}{{ page.cap2 }}{% endif %}")
+    r_l2_c2.font.name = "Calibri"
+    r_l2_c2.font.size = Pt(8.5)
 
-    p_blk_end = doc.add_paragraph()
-    p_blk_end.add_run("{% endfor %}")
+    p_l2_end = doc.add_paragraph()
+    p_l2_end.add_run("{% endif %}")
 
-    p_sec_loop_end = doc.add_paragraph()
-    p_sec_loop_end.add_run("{% endfor %}")
+    # ================= LAYOUT 3: 3 PHOTOS HYBRID (1 TOP + 2 BOTTOM - MATCHES SCREENSHOT 3) =================
+    p_l3_if = doc.add_paragraph()
+    p_l3_if.add_run("{% if page.layout == '3_hybrid' %}")
+
+    # Row 1: Large Centered Top Photo
+    p_l3_sub1 = doc.add_paragraph()
+    p_l3_sub1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_sub1.paragraph_format.space_before = Pt(0)
+    p_l3_sub1.paragraph_format.space_after = Pt(2)
+    r_l3_s1 = p_l3_sub1.add_run("{% if page.sub1 %}{{ page.sub1 }}{% endif %}")
+    r_l3_s1.font.name = "Calibri"
+    r_l3_s1.font.size = Pt(10)
+    r_l3_s1.font.bold = True
+
+    p_l3_img1 = doc.add_paragraph()
+    p_l3_img1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_img1.paragraph_format.space_before = Pt(0)
+    p_l3_img1.paragraph_format.space_after = Pt(2)
+    p_l3_img1.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
+
+    p_l3_cap1 = doc.add_paragraph()
+    p_l3_cap1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_cap1.paragraph_format.space_before = Pt(0)
+    p_l3_cap1.paragraph_format.space_after = Pt(6) # Small neat gap before bottom row
+    r_l3_c1 = p_l3_cap1.add_run("{% if page.cap1 %}{{ page.cap1 }}{% endif %}")
+    r_l3_c1.font.name = "Calibri"
+    r_l3_c1.font.size = Pt(8.5)
+
+    # Row 2: 2 Photos Side-by-Side in borderless 2-column table
+    tbl_l3_r2 = doc.add_table(rows=1, cols=2)
+    tbl_l3_r2.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl_l3_r2.autofit = False
+    remove_table_borders(tbl_l3_r2)
+
+    c_l3_1 = tbl_l3_r2.rows[0].cells[0]
+    c_l3_2 = tbl_l3_r2.rows[0].cells[1]
+    c_l3_1.width = Inches(3.55)
+    c_l3_2.width = Inches(3.55)
+    set_cell_margins(c_l3_1, top=10, bottom=20, left=10, right=20)
+    set_cell_margins(c_l3_2, top=10, bottom=20, left=20, right=10)
+
+    # Left Bottom Photo
+    p_l3_s2 = c_l3_1.paragraphs[0]
+    p_l3_s2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_s2.paragraph_format.space_before = Pt(0)
+    p_l3_s2.paragraph_format.space_after = Pt(2)
+    r_l3_s2 = p_l3_s2.add_run("{% if page.sub2 %}{{ page.sub2 }}{% endif %}")
+    r_l3_s2.font.name = "Calibri"
+    r_l3_s2.font.size = Pt(9.5)
+    r_l3_s2.font.bold = True
+
+    p_l3_i2 = c_l3_1.add_paragraph()
+    p_l3_i2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_i2.paragraph_format.space_before = Pt(0)
+    p_l3_i2.paragraph_format.space_after = Pt(2)
+    p_l3_i2.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
+
+    p_l3_c2 = c_l3_1.add_paragraph()
+    p_l3_c2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_c2.paragraph_format.space_before = Pt(0)
+    p_l3_c2.paragraph_format.space_after = Pt(2)
+    r_l3_c2 = p_l3_c2.add_run("{% if page.cap2 %}{{ page.cap2 }}{% endif %}")
+    r_l3_c2.font.name = "Calibri"
+    r_l3_c2.font.size = Pt(8)
+
+    # Right Bottom Photo
+    p_l3_s3 = c_l3_2.paragraphs[0]
+    p_l3_s3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_s3.paragraph_format.space_before = Pt(0)
+    p_l3_s3.paragraph_format.space_after = Pt(2)
+    r_l3_s3 = p_l3_s3.add_run("{% if page.sub3 %}{{ page.sub3 }}{% endif %}")
+    r_l3_s3.font.name = "Calibri"
+    r_l3_s3.font.size = Pt(9.5)
+    r_l3_s3.font.bold = True
+
+    p_l3_i3 = c_l3_2.add_paragraph()
+    p_l3_i3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_i3.paragraph_format.space_before = Pt(0)
+    p_l3_i3.paragraph_format.space_after = Pt(2)
+    p_l3_i3.add_run("{% if page.img3 %}{{ page.img3 }}{% endif %}")
+
+    p_l3_c3 = c_l3_2.add_paragraph()
+    p_l3_c3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_l3_c3.paragraph_format.space_before = Pt(0)
+    p_l3_c3.paragraph_format.space_after = Pt(2)
+    r_l3_c3 = p_l3_c3.add_run("{% if page.cap3 %}{{ page.cap3 }}{% endif %}")
+    r_l3_c3.font.name = "Calibri"
+    r_l3_c3.font.size = Pt(8)
+
+    p_l3_end = doc.add_paragraph()
+    p_l3_end.add_run("{% endif %}")
+
+    # ================= LAYOUT 4: 4 PHOTOS (2x2 GRID) =================
+    p_l4_if = doc.add_paragraph()
+    p_l4_if.add_run("{% if page.layout == '4_grid' %}")
+
+    tbl_l4 = doc.add_table(rows=2, cols=2)
+    tbl_l4.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl_l4.autofit = False
+    remove_table_borders(tbl_l4)
+
+    # Setup cell widths and padding
+    for r_i in range(2):
+        for c_i in range(2):
+            cell = tbl_l4.rows[r_i].cells[c_i]
+            cell.width = Inches(3.55)
+            set_cell_margins(cell, top=10, bottom=15, left=15, right=15)
+
+    # Cell 1 (Row 0, Col 0): img1
+    p_s1 = tbl_l4.rows[0].cells[0].paragraphs[0]
+    p_s1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_s = p_s1.add_run("{% if page.sub1 %}{{ page.sub1 }}{% endif %}")
+    r_s.font.bold = True
+    r_s.font.size = Pt(9)
+    p_i = tbl_l4.rows[0].cells[0].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
+    p_c = tbl_l4.rows[0].cells[0].add_paragraph()
+    p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_c = p_c.add_run("{% if page.cap1 %}{{ page.cap1 }}{% endif %}")
+    r_c.font.size = Pt(8)
+
+    # Cell 2 (Row 0, Col 1): img2
+    p_s2 = tbl_l4.rows[0].cells[1].paragraphs[0]
+    p_s2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_s = p_s2.add_run("{% if page.sub2 %}{{ page.sub2 }}{% endif %}")
+    r_s.font.bold = True
+    r_s.font.size = Pt(9)
+    p_i = tbl_l4.rows[0].cells[1].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
+    p_c = tbl_l4.rows[0].cells[1].add_paragraph()
+    p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_c = p_c.add_run("{% if page.cap2 %}{{ page.cap2 }}{% endif %}")
+    r_c.font.size = Pt(8)
+
+    # Cell 3 (Row 1, Col 0): img3
+    p_s3 = tbl_l4.rows[1].cells[0].paragraphs[0]
+    p_s3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_s = p_s3.add_run("{% if page.sub3 %}{{ page.sub3 }}{% endif %}")
+    r_s.font.bold = True
+    r_s.font.size = Pt(9)
+    p_i = tbl_l4.rows[1].cells[0].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img3 %}{{ page.img3 }}{% endif %}")
+    p_c = tbl_l4.rows[1].cells[0].add_paragraph()
+    p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_c = p_c.add_run("{% if page.cap3 %}{{ page.cap3 }}{% endif %}")
+    r_c.font.size = Pt(8)
+
+    # Cell 4 (Row 1, Col 1): img4
+    p_s4 = tbl_l4.rows[1].cells[1].paragraphs[0]
+    p_s4.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_s = p_s4.add_run("{% if page.sub4 %}{{ page.sub4 }}{% endif %}")
+    r_s.font.bold = True
+    r_s.font.size = Pt(9)
+    p_i = tbl_l4.rows[1].cells[1].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img4 %}{{ page.img4 }}{% endif %}")
+    p_c = tbl_l4.rows[1].cells[1].add_paragraph()
+    p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_c = p_c.add_run("{% if page.cap4 %}{{ page.cap4 }}{% endif %}")
+    r_c.font.size = Pt(8)
+
+    p_l4_end = doc.add_paragraph()
+    p_l4_end.add_run("{% endif %}")
+
+    # ================= LAYOUT 5: 5 PHOTOS (2 TOP + 3 BOTTOM) =================
+    p_l5_if = doc.add_paragraph()
+    p_l5_if.add_run("{% if page.layout == '5_grid' %}")
+
+    tbl_l5_r1 = doc.add_table(rows=1, cols=2)
+    tbl_l5_r1.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl_l5_r1.autofit = False
+    remove_table_borders(tbl_l5_r1)
+    for c_i in range(2):
+        cell = tbl_l5_r1.rows[0].cells[c_i]
+        cell.width = Inches(3.55)
+        set_cell_margins(cell, top=10, bottom=15, left=15, right=15)
+
+    p_s = tbl_l5_r1.rows[0].cells[0].paragraphs[0]
+    p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_s.add_run("{% if page.sub1 %}{{ page.sub1 }}{% endif %}").font.size = Pt(9)
+    p_i = tbl_l5_r1.rows[0].cells[0].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
+
+    p_s = tbl_l5_r1.rows[0].cells[1].paragraphs[0]
+    p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_s.add_run("{% if page.sub2 %}{{ page.sub2 }}{% endif %}").font.size = Pt(9)
+    p_i = tbl_l5_r1.rows[0].cells[1].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
+
+    tbl_l5_r2 = doc.add_table(rows=1, cols=3)
+    tbl_l5_r2.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl_l5_r2.autofit = False
+    remove_table_borders(tbl_l5_r2)
+    for c_i in range(3):
+        cell = tbl_l5_r2.rows[0].cells[c_i]
+        cell.width = Inches(2.36)
+        set_cell_margins(cell, top=10, bottom=15, left=10, right=10)
+
+    p_s = tbl_l5_r2.rows[0].cells[0].paragraphs[0]
+    p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_s.add_run("{% if page.sub3 %}{{ page.sub3 }}{% endif %}").font.size = Pt(8.5)
+    p_i = tbl_l5_r2.rows[0].cells[0].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img3 %}{{ page.img3 }}{% endif %}")
+
+    p_s = tbl_l5_r2.rows[0].cells[1].paragraphs[0]
+    p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_s.add_run("{% if page.sub4 %}{{ page.sub4 }}{% endif %}").font.size = Pt(8.5)
+    p_i = tbl_l5_r2.rows[0].cells[1].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img4 %}{{ page.img4 }}{% endif %}")
+
+    p_s = tbl_l5_r2.rows[0].cells[2].paragraphs[0]
+    p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_s.add_run("{% if page.sub5 %}{{ page.sub5 }}{% endif %}").font.size = Pt(8.5)
+    p_i = tbl_l5_r2.rows[0].cells[2].add_paragraph()
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img5 %}{{ page.img5 }}{% endif %}")
+
+    p_l5_end = doc.add_paragraph()
+    p_l5_end.add_run("{% endif %}")
+
+    # ================= LAYOUT 6: 6 PHOTOS (2 ROWS OF 3) =================
+    p_l6_if = doc.add_paragraph()
+    p_l6_if.add_run("{% if page.layout == '6_grid' %}")
+
+    tbl_l6 = doc.add_table(rows=2, cols=3)
+    tbl_l6.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl_l6.autofit = False
+    remove_table_borders(tbl_l6)
+    for r_i in range(2):
+        for c_i in range(3):
+            cell = tbl_l6.rows[r_i].cells[c_i]
+            cell.width = Inches(2.36)
+            set_cell_margins(cell, top=10, bottom=15, left=10, right=10)
+
+    # Row 1 (img1, img2, img3)
+    p_i = tbl_l6.rows[0].cells[0].paragraphs[0]
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
+
+    p_i = tbl_l6.rows[0].cells[1].paragraphs[0]
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
+
+    p_i = tbl_l6.rows[0].cells[2].paragraphs[0]
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img3 %}{{ page.img3 }}{% endif %}")
+
+    # Row 2 (img4, img5, img6)
+    p_i = tbl_l6.rows[1].cells[0].paragraphs[0]
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img4 %}{{ page.img4 }}{% endif %}")
+
+    p_i = tbl_l6.rows[1].cells[1].paragraphs[0]
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img5 %}{{ page.img5 }}{% endif %}")
+
+    p_i = tbl_l6.rows[1].cells[2].paragraphs[0]
+    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i.add_run("{% if page.img6 %}{{ page.img6 }}{% endif %}")
+
+    p_l6_end = doc.add_paragraph()
+    p_l6_end.add_run("{% endif %}")
+
+    # ================= LAYOUT GENERIC: GENERIC ROWS FALLBACK =================
+    p_gen_if = doc.add_paragraph()
+    p_gen_if.add_run("{% if page.layout == 'generic' %}")
+    p_gen_loop = doc.add_paragraph()
+    p_gen_loop.add_run("{% for row in page.generic_rows %}")
+
+    tbl_gen = doc.add_table(rows=1, cols=2)
+    tbl_gen.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl_gen.autofit = False
+    remove_table_borders(tbl_gen)
+    c1, c2 = tbl_gen.rows[0].cells[0], tbl_gen.rows[0].cells[1]
+    c1.width = Inches(3.55)
+    c2.width = Inches(3.55)
+    set_cell_margins(c1, top=10, bottom=15, left=15, right=15)
+    set_cell_margins(c2, top=10, bottom=15, left=15, right=15)
+
+    p_i1 = c1.paragraphs[0]
+    p_i1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i1.add_run("{% if row.img1 %}{{ row.img1 }}{% endif %}")
+
+    p_i2 = c2.paragraphs[0]
+    p_i2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_i2.add_run("{% if row.img2 %}{{ row.img2 }}{% endif %}")
+
+    p_gen_endloop = doc.add_paragraph()
+    p_gen_endloop.add_run("{% endfor %}")
+    p_gen_endif = doc.add_paragraph()
+    p_gen_endif.add_run("{% endif %}")
+
+    p_pg_loop_end = doc.add_paragraph()
+    p_pg_loop_end.add_run("{% endfor %}")
 
     # ---------------- END OF PROCEDURE MARKER ----------------
     end_para = doc.add_paragraph()

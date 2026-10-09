@@ -58,12 +58,13 @@ class SectionNote(models.Model):
     text = models.TextField()
     order = models.PositiveIntegerField(default=0)
     position = models.CharField(max_length=50, default='top', blank=True)
+    page_number = models.PositiveIntegerField(default=1)
 
     class Meta:
-        ordering = ['order']
+        ordering = ['page_number', 'order']
 
     def __str__(self):
-        return f"Note #{self.order} ({self.position}) for {self.section.title}"
+        return f"Note #{self.order} (P.{self.page_number}) for {self.section.title}"
 
 
 class SectionImage(models.Model):
@@ -76,10 +77,12 @@ class SectionImage(models.Model):
     subtitle = models.CharField(max_length=255, blank=True, default="")
     caption = models.TextField(blank=True, default="")
     order = models.PositiveIntegerField(default=0)
+    page_number = models.PositiveIntegerField(default=1)
+    page_subtitle = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
-        ordering = ['order']
+        ordering = ['page_number', 'order']
 
     def __str__(self):
-        return f"Image #{self.order} for {self.section.title}"
+        return f"Image #{self.order} (P.{self.page_number}) for {self.section.title}"
 

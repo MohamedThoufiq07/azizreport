@@ -5,13 +5,13 @@ from .models import InspectionReport, ReportSection, SectionNote, SectionImage
 class SectionNoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = SectionNote
-        fields = ['id', 'text', 'order']
+        fields = ['id', 'text', 'order', 'position', 'page_number']
 
 
 class SectionImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = SectionImage
-        fields = ['id', 'image', 'subtitle', 'caption', 'order']
+        fields = ['id', 'image', 'subtitle', 'caption', 'order', 'page_number', 'page_subtitle']
 
 
 class ReportSectionSerializer(serializers.ModelSerializer):

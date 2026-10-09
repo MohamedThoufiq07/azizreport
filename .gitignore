@@ -5,8 +5,9 @@ __pycache__/
 venv/
 .venv/
 *.sqlite3
-backend/media/generated_reports/
-backend/media/uploads/inspection_images/*
+backend/generated_reports/
+backend/media/
+media/
 
 # Node & React
 node_modules/

@@ -70,49 +70,107 @@ class InspectionReportViewSet(viewsets.ModelViewSet):
                 order=sec_dict.get('order', s_idx)
             )
 
-            # Create text notes/bullet points
-            notes_meta = sec_dict.get('notes', [])
-            for n_idx, note_item in enumerate(notes_meta):
-                if isinstance(note_item, dict):
-                    note_text = note_item.get('text', '')
-                    note_order = note_item.get('order', n_idx)
-                    note_position = note_item.get('position', 'top')
-                else:
-                    note_text = str(note_item)
-                    note_order = n_idx
-                    note_position = 'top'
+            # Check if section has pages structure or flat structure
+            pages_data = sec_dict.get('pages')
 
-                if note_text.strip():
-                    SectionNote.objects.create(
-                        section=section,
-                        text=note_text.strip(),
-                        order=note_order,
-                        position=note_position
-                    )
+            if pages_data and len(pages_data) > 0:
+                for p_idx, page_item in enumerate(pages_data):
+                    page_num = page_item.get('page_number', p_idx + 1)
+                    page_subtitle = page_item.get('subtitle', '').strip()
 
-            images_meta = sec_dict.get('images', [])
-            for img_idx, img_meta in enumerate(images_meta):
-                file_key = img_meta.get('file_key') or f"image_s{s_idx}_i{img_idx}"
-                image_file = request.FILES.get(file_key)
-                
-                # Robust fallback: search by key pattern if exact key missing
-                if not image_file:
-                    for k, f in request.FILES.items():
-                        if f"s{s_idx}_i{img_idx}" in k or f"s_{s_idx}_i_{img_idx}" in k:
-                            image_file = f
-                            break
+                    # Save notes for this page
+                    for n_idx, note_item in enumerate(page_item.get('notes', [])):
+                        if isinstance(note_item, dict):
+                            note_text = note_item.get('text', '')
+                            note_order = note_item.get('order', n_idx)
+                            note_position = note_item.get('position', 'top')
+                        else:
+                            note_text = str(note_item)
+                            note_order = n_idx
+                            note_position = 'top'
 
-                if image_file:
-                    created_img = SectionImage.objects.create(
-                        section=section,
-                        image=image_file,
-                        subtitle=img_meta.get('subtitle', ''),
-                        caption=img_meta.get('caption', ''),
-                        order=img_meta.get('order', img_idx)
-                    )
-                    print(f"✅ Created SectionImage #{created_img.id}: {created_img.image.path}")
-                else:
-                    print(f"⚠️ Image file missing for key '{file_key}' in Section '{section.title}'")
+                        if note_text.strip():
+                            SectionNote.objects.create(
+                                section=section,
+                                text=note_text.strip(),
+                                order=note_order,
+                                position=note_position,
+                                page_number=page_num
+                            )
+
+                    # Save images for this page
+                    for img_idx, img_meta in enumerate(page_item.get('images', [])):
+                        file_key = img_meta.get('file_key') or f"image_s{s_idx}_p{p_idx}_i{img_idx}"
+                        image_file = request.FILES.get(file_key)
+
+                        if not image_file:
+                            # Search in request.FILES matching keys
+                            patterns = [
+                                f"s{s_idx}_p{p_idx}_i{img_idx}",
+                                f"s_{s_idx}_p_{p_idx}_i_{img_idx}",
+                                f"s{s_idx}_i{img_idx}"
+                            ]
+                            for k, f in request.FILES.items():
+                                if any(p in k for p in patterns):
+                                    image_file = f
+                                    break
+
+                        if image_file:
+                            created_img = SectionImage.objects.create(
+                                section=section,
+                                image=image_file,
+                                subtitle=img_meta.get('subtitle', ''),
+                                caption=img_meta.get('caption', ''),
+                                order=img_meta.get('order', img_idx),
+                                page_number=page_num,
+                                page_subtitle=page_subtitle
+                            )
+                            print(f"Created SectionImage #{created_img.id} for Sec {section.title} P.{page_num}")
+                        else:
+                            print(f"Notice: Image file missing for key '{file_key}' in Sec {section.title} P.{page_num}")
+            else:
+                # Flat legacy structure fallback
+                notes_meta = sec_dict.get('notes', [])
+                for n_idx, note_item in enumerate(notes_meta):
+                    if isinstance(note_item, dict):
+                        note_text = note_item.get('text', '')
+                        note_order = note_item.get('order', n_idx)
+                        note_position = note_item.get('position', 'top')
+                    else:
+                        note_text = str(note_item)
+                        note_order = n_idx
+                        note_position = 'top'
+
+                    if note_text.strip():
+                        SectionNote.objects.create(
+                            section=section,
+                            text=note_text.strip(),
+                            order=note_order,
+                            position=note_position,
+                            page_number=1
+                        )
+
+                images_meta = sec_dict.get('images', [])
+                for img_idx, img_meta in enumerate(images_meta):
+                    file_key = img_meta.get('file_key') or f"image_s{s_idx}_i{img_idx}"
+                    image_file = request.FILES.get(file_key)
+                    if not image_file:
+                        for k, f in request.FILES.items():
+                            if f"s{s_idx}_i{img_idx}" in k or f"s_{s_idx}_i_{img_idx}" in k:
+                                image_file = f
+                                break
+
+                    if image_file:
+                        created_img = SectionImage.objects.create(
+                            section=section,
+                            image=image_file,
+                            subtitle=img_meta.get('subtitle', ''),
+                            caption=img_meta.get('caption', ''),
+                            order=img_meta.get('order', img_idx),
+                            page_number=1,
+                            page_subtitle=""
+                        )
+                        print(f"Created legacy SectionImage #{created_img.id}")
 
         serializer = self.get_serializer(report)
         response_data = serializer.data

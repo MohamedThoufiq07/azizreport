@@ -33,15 +33,54 @@ def test_generator():
     )
 
     sec1 = ReportSection.objects.create(report=report, title="3. Civil", order=0)
-    SectionNote.objects.create(section=sec1, text="SEVERELY FADED TRANSFORMER NAMEPLATE.", order=0)
-    SectionImage.objects.create(section=sec1, image="uploads/inspection_images/test_sample.jpg", subtitle="1. Nameplate", caption="Civil foundation structure view", order=1)
-    SectionImage.objects.create(section=sec1, image="uploads/inspection_images/test_sample.jpg", subtitle="2. Trench Wall", caption="Civil drainage and trench cover", order=2)
-    SectionNote.objects.create(section=sec1, text="LOOSE DISORGANIZED CABLES RESTING ON THE DIRTY FLOOR OF THE TRENCH BENEATH THE GRATING.", order=3)
+    # Page 1: 3.1 Substation Outside (2 photos)
+    SectionImage.objects.create(
+        section=sec1, 
+        image="uploads/inspection_images/test_sample.jpg", 
+        subtitle="3.1 Substation Outside", 
+        caption="Civil exterior facade", 
+        order=0,
+        page_number=1,
+        page_subtitle="3.1 Substation Outside"
+    )
+    SectionImage.objects.create(
+        section=sec1, 
+        image="uploads/inspection_images/test_sample.jpg", 
+        subtitle="", 
+        caption="Substation plate closeup", 
+        order=1,
+        page_number=1,
+        page_subtitle="3.1 Substation Outside"
+    )
 
-    sec2 = ReportSection.objects.create(report=report, title="3.2 Transformers", order=1)
-    SectionImage.objects.create(section=sec2, image="uploads/inspection_images/test_sample.jpg", caption="Transformer T1 Red Phase Bushing", order=0)
-
-    sec3 = ReportSection.objects.create(report=report, title="3.3 Switchgear", order=2)
+    # Page 2: 3.2 SWITCH GEAR (3 photos)
+    SectionImage.objects.create(
+        section=sec1, 
+        image="uploads/inspection_images/test_sample.jpg", 
+        subtitle="3.2 SWITCH GEAR", 
+        caption="Switchgear overview", 
+        order=0,
+        page_number=2,
+        page_subtitle="3.2 SWITCH GEAR"
+    )
+    SectionImage.objects.create(
+        section=sec1, 
+        image="uploads/inspection_images/test_sample.jpg", 
+        subtitle="", 
+        caption="Nameplate details", 
+        order=1,
+        page_number=2,
+        page_subtitle="3.2 SWITCH GEAR"
+    )
+    SectionImage.objects.create(
+        section=sec1, 
+        image="uploads/inspection_images/test_sample.jpg", 
+        subtitle="", 
+        caption="Control panel face", 
+        order=2,
+        page_number=2,
+        page_subtitle="3.2 SWITCH GEAR"
+    )
 
     template_path = get_template_path()
     output_dir = get_generated_dir()
@@ -50,7 +89,7 @@ def test_generator():
     print(f"Rendering DOCX to: {docx_path}")
     generate_report_docx(report, template_path, docx_path)
     assert os.path.exists(docx_path), "DOCX file generation failed!"
-    print("✅ DOCX Generation Successful!")
+    print("[SUCCESS] DOCX Generation Successful!")
 
     libreoffice_bin = find_libreoffice_executable()
     print(f"LibreOffice Executable path: {libreoffice_bin}")
@@ -58,9 +97,9 @@ def test_generator():
         pdf_path = convert_docx_to_pdf(docx_path, output_dir)
         print(f"Compiled PDF path: {pdf_path}")
         assert os.path.exists(pdf_path), "PDF file conversion failed!"
-        print("✅ Headless LibreOffice PDF Compilation Successful!")
+        print("[SUCCESS] Headless LibreOffice PDF Compilation Successful!")
     else:
-        print("⚠️ LibreOffice executable not found on host environment. DOCX compilation verified. Install LibreOffice for PDF compilation.")
+        print("[NOTICE] LibreOffice not found, DOCX verified.")
 
 if __name__ == "__main__":
     test_generator()
