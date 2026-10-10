@@ -40,16 +40,15 @@ def set_table_borders(table, color_hex="000000", sz="4", val="single"):
 def add_thin_light_cyan_page_border(section):
     """
     Adds thin light sky blue double frame border matching reference photos 1 & 2.
-    Positioned relative to text (offsetFrom="text") so top border line moves DOWN right next to header table,
-    and bottom border line moves UP right next to footer text.
+    Positioned relative to page edge (offsetFrom="page") so border frames the entire page around header and footer.
     """
     sectPr = section._sectPr
     pgBorders = parse_xml(
-        f'<w:pgBorders {nsdecls("w")} w:offsetFrom="text">'
-        f'  <w:top w:val="double" w:sz="6" w:space="14" w:color="00AEEF"/>'
-        f'  <w:left w:val="double" w:sz="6" w:space="14" w:color="00AEEF"/>'
-        f'  <w:bottom w:val="double" w:sz="6" w:space="14" w:color="00AEEF"/>'
-        f'  <w:right w:val="double" w:sz="6" w:space="14" w:color="00AEEF"/>'
+        f'<w:pgBorders {nsdecls("w")} w:offsetFrom="page">'
+        f'  <w:top w:val="double" w:sz="6" w:space="18" w:color="00AEEF"/>'
+        f'  <w:left w:val="double" w:sz="6" w:space="18" w:color="00AEEF"/>'
+        f'  <w:bottom w:val="double" w:sz="6" w:space="18" w:color="00AEEF"/>'
+        f'  <w:right w:val="double" w:sz="6" w:space="18" w:color="00AEEF"/>'
         f'</w:pgBorders>'
     )
     sectPr.append(pgBorders)
@@ -92,28 +91,18 @@ def remove_table_borders(table):
 
 def add_blue_section_banner(doc, title_text, is_subtitle=False):
     """
-    Adds soft blue section banner matching reference screenshots 1 & 2.
-    Width: 5.6" left-aligned banner (not full width), positioned near header.
-    If is_subtitle, indented slightly to match Screenshot 2 and 3.
+    Adds soft blue section banner matching reference screenshots.
+    Both main titles and subtitles align flush left on the page margin.
     """
-    table = doc.add_table(rows=1, cols=2 if is_subtitle else 1)
+    table = doc.add_table(rows=1, cols=1)
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
     remove_table_borders(table)
-    if is_subtitle:
-        cell_spacer = table.rows[0].cells[0]
-        cell_spacer.width = Inches(0.35)
-        set_cell_margins(cell_spacer, top=0, bottom=0, left=0, right=0)
-        
-        cell = table.rows[0].cells[1]
-        cell.width = Inches(5.25)
-        set_cell_background(cell, "B4C6E7")
-        set_cell_margins(cell, top=50, bottom=50, left=120, right=120)
-    else:
-        cell = table.rows[0].cells[0]
-        cell.width = Inches(5.6)
-        set_cell_background(cell, "B4C6E7") # Soft pastel blue matching photo 1 & 2
-        set_cell_margins(cell, top=60, bottom=60, left=140, right=140)
-    
+
+    cell = table.rows[0].cells[0]
+    cell.width = Inches(7.17)
+    set_cell_background(cell, "B4C6E7")
+    set_cell_margins(cell, top=50, bottom=50, left=120, right=120)
+
     p = cell.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.space_before = Pt(0)
@@ -123,10 +112,6 @@ def add_blue_section_banner(doc, title_text, is_subtitle=False):
     run.font.size = Pt(11 if is_subtitle else 12)
     run.font.bold = True
     run.font.color.rgb = RGBColor(0, 0, 0)
-    
-    p_after = doc.add_paragraph() # Spacing after banner
-    p_after.paragraph_format.space_before = Pt(2)
-    p_after.paragraph_format.space_after = Pt(4)
 
 
 def get_logo_paths():
@@ -142,15 +127,15 @@ def get_logo_paths():
 def create_template_docx(output_path="template.docx"):
     doc = Document()
     
-    # Page setup - Standard A4 with top margin 0.95 in to give clear gap below header table
+    # Page setup - Standard A4 with top margin 1.65 in to give clear gap below header table
     section = doc.sections[0]
     section.page_width = Inches(8.27)
     section.page_height = Inches(11.69)
-    section.top_margin = Inches(0.95)
-    section.bottom_margin = Inches(0.4)
+    section.top_margin = Inches(1.65)
+    section.bottom_margin = Inches(0.50)
     section.left_margin = Inches(0.5)
     section.right_margin = Inches(0.5)
-    section.header_distance = Inches(0.28)
+    section.header_distance = Inches(0.35)
     section.footer_distance = Inches(0.25)
 
     # ADD THIN LIGHT SKY BLUE DOUBLE PAGE FRAME BORDER (ALL 4 SIDES)
@@ -222,37 +207,48 @@ def create_template_docx(output_path="template.docx"):
         r_taqa_sub.font.name = "Calibri"
         r_taqa_sub.font.size = Pt(7.5)
 
-    # ---------------- FOOTER TAB STOP SETUP (100% TABLE-FREE, ZERO GRIDLINES) ----------------
+    # ---------------- FOOTER TABLE SETUP (EXACT MATCHING SCREENSHOT 2 RIGHT CORNER) ----------------
     footer = section.footer
-    fp = footer.paragraphs[0]
-    fp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    fp.paragraph_format.line_spacing = 1.15
-    fp.paragraph_format.space_before = Pt(0)
-    fp.paragraph_format.space_after = Pt(0)
-    fp.paragraph_format.tab_stops.add_tab_stop(Inches(7.17), WD_TAB_ALIGNMENT.RIGHT)
+    footer_table = footer.add_table(rows=1, cols=2, width=Inches(7.27))
+    footer_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    remove_table_borders(footer_table)
 
-    # Left Footer: D– 114980
-    f_run1 = fp.add_run("D– 114980")
+    fc0, fc1 = footer_table.rows[0].cells[0], footer_table.rows[0].cells[1]
+    fc0.width = Inches(3.63)
+    fc1.width = Inches(3.64)
+
+    # Left Cell: D– 114980
+    p_fc0 = fc0.paragraphs[0]
+    p_fc0.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_fc0.paragraph_format.space_before = Pt(0)
+    p_fc0.paragraph_format.space_after = Pt(0)
+    f_run1 = p_fc0.add_run("D– 114980")
     f_run1.font.name = "Calibri"
     f_run1.font.size = Pt(9.5)
     f_run1.font.color.rgb = RGBColor(89, 89, 89)
 
-    # Right Footer: Page X of Y & DELTA STAR
-    f_tab = fp.add_run("\tPage ")
+    # Right Cell: Page X of Y & DELTA STAR (Right-Aligned)
+    p_fc1 = fc1.paragraphs[0]
+    p_fc1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p_fc1.paragraph_format.space_before = Pt(0)
+    p_fc1.paragraph_format.space_after = Pt(0)
+    p_fc1.paragraph_format.line_spacing = 1.15
+    
+    f_tab = p_fc1.add_run("Page ")
     f_tab.font.name = "Calibri"
     f_tab.font.size = Pt(9.5)
     f_tab.font.color.rgb = RGBColor(89, 89, 89)
 
-    add_word_field(fp, "PAGE")
+    add_word_field(p_fc1, "PAGE")
 
-    f_of = fp.add_run(" of ")
+    f_of = p_fc1.add_run(" of ")
     f_of.font.name = "Calibri"
     f_of.font.size = Pt(9.5)
     f_of.font.color.rgb = RGBColor(89, 89, 89)
 
-    add_word_field(fp, "NUMPAGES")
+    add_word_field(p_fc1, "NUMPAGES")
 
-    r_ds_label = fp.add_run("\n\tDELTA STAR")
+    r_ds_label = p_fc1.add_run("\nDELTA STAR")
     r_ds_label.font.name = "Calibri"
     r_ds_label.font.size = Pt(9.5)
     r_ds_label.font.bold = True
@@ -339,6 +335,10 @@ def create_template_docx(output_path="template.docx"):
     doc.add_page_break()
 
     # ---------------- PAGE 2: SECTION 1 (BRIEF) & SECTION 2 (FINDINGS) ----------------
+    p_gap = doc.add_paragraph()
+    p_gap.paragraph_format.space_before = Pt(6)
+    p_gap.paragraph_format.space_after = Pt(0)
+
     add_blue_section_banner(doc, "1. Brief")
 
     p_b1 = doc.add_paragraph()
@@ -383,34 +383,44 @@ def create_template_docx(output_path="template.docx"):
     r_right.font.name = "Calibri"
     r_right.font.size = Pt(10.5)
 
+    # Force page break after Section 2 so Section 3 (dynamic pages) starts at top of Page 3
+    doc.add_page_break()
+
     # ---------------- PAGE 3+: DYNAMIC PER-PAGE PHOTO EVIDENCE & AUTO-FIT LAYOUTS ----------------
     p_pg_loop_start = doc.add_paragraph()
+    p_pg_loop_start.paragraph_format.space_before = Pt(0)
+    p_pg_loop_start.paragraph_format.space_after = Pt(0)
     p_pg_loop_start.add_run("{% for page in pages %}")
 
-    # Add page break between pages (first page is already placed on Page 3 after Summary of Findings)
+    # Add page break between pages
     p_pb = doc.add_paragraph()
+    p_pb.paragraph_format.space_before = Pt(0)
+    p_pb.paragraph_format.space_after = Pt(0)
     p_pb.add_run("{% if not loop.first %}")
     p_pb.add_run()._r.append(parse_xml(r'<w:br %s w:type="page"/>' % nsdecls('w')))
     p_pb.add_run("{% endif %}")
 
     # Section Title Banner (Rendered on first page of a section)
     p_sec_if = doc.add_paragraph()
+    p_sec_if.paragraph_format.space_before = Pt(0)
+    p_sec_if.paragraph_format.space_after = Pt(0)
     p_sec_if.add_run("{% if page.is_first_page_of_section and page.section_title %}")
     add_blue_section_banner(doc, "{{ page.section_title }}", is_subtitle=False)
     p_sec_end = doc.add_paragraph()
+    p_sec_end.paragraph_format.space_before = Pt(0)
+    p_sec_end.paragraph_format.space_after = Pt(2)
     p_sec_end.add_run("{% endif %}")
 
     # Subtitle Banner (e.g. 3.1 Substation Outside or 3.2 SWITCH GEAR)
     p_sub_if = doc.add_paragraph()
+    p_sub_if.paragraph_format.space_before = Pt(0)
+    p_sub_if.paragraph_format.space_after = Pt(0)
     p_sub_if.add_run("{% if page.subtitle %}")
     add_blue_section_banner(doc, "{{ page.subtitle }}", is_subtitle=True)
     p_sub_end = doc.add_paragraph()
+    p_sub_end.paragraph_format.space_before = Pt(0)
+    p_sub_end.paragraph_format.space_after = Pt(4)
     p_sub_end.add_run("{% endif %}")
-
-    # Clean spacing gap between titles and content - never merge title with content
-    p_gap = doc.add_paragraph()
-    p_gap.paragraph_format.space_before = Pt(4)
-    p_gap.paragraph_format.space_after = Pt(8)
 
     # Bullet point notes (if any on this page)
     p_notes_if = doc.add_paragraph()
@@ -620,8 +630,8 @@ def create_template_docx(output_path="template.docx"):
     for r_i in range(2):
         for c_i in range(2):
             cell = tbl_l4.rows[r_i].cells[c_i]
-            cell.width = Inches(3.55)
-            set_cell_margins(cell, top=10, bottom=15, left=15, right=15)
+            cell.width = Inches(3.52)
+            set_cell_margins(cell, top=5, bottom=5, left=8, right=8)
 
     # Cell 1 (Row 0, Col 0): img1
     p_s1 = tbl_l4.rows[0].cells[0].paragraphs[0]
@@ -692,8 +702,8 @@ def create_template_docx(output_path="template.docx"):
     remove_table_borders(tbl_l5_r1)
     for c_i in range(2):
         cell = tbl_l5_r1.rows[0].cells[c_i]
-        cell.width = Inches(3.55)
-        set_cell_margins(cell, top=10, bottom=15, left=15, right=15)
+        cell.width = Inches(3.52)
+        set_cell_margins(cell, top=5, bottom=5, left=8, right=8)
 
     p_s = tbl_l5_r1.rows[0].cells[0].paragraphs[0]
     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -715,8 +725,8 @@ def create_template_docx(output_path="template.docx"):
     remove_table_borders(tbl_l5_r2)
     for c_i in range(3):
         cell = tbl_l5_r2.rows[0].cells[c_i]
-        cell.width = Inches(2.36)
-        set_cell_margins(cell, top=10, bottom=15, left=10, right=10)
+        cell.width = Inches(2.32)
+        set_cell_margins(cell, top=5, bottom=5, left=5, right=5)
 
     p_s = tbl_l5_r2.rows[0].cells[0].paragraphs[0]
     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -753,34 +763,60 @@ def create_template_docx(output_path="template.docx"):
     for r_i in range(2):
         for c_i in range(3):
             cell = tbl_l6.rows[r_i].cells[c_i]
-            cell.width = Inches(2.36)
-            set_cell_margins(cell, top=10, bottom=15, left=10, right=10)
+            cell.width = Inches(2.32)
+            set_cell_margins(cell, top=5, bottom=5, left=5, right=5)
 
     # Row 1 (img1, img2, img3)
-    p_i = tbl_l6.rows[0].cells[0].paragraphs[0]
-    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
+    for idx_c, idx_num in enumerate([1, 2, 3]):
+        cell = tbl_l6.rows[0].cells[idx_c]
+        p_s = cell.paragraphs[0]
+        p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_s.paragraph_format.space_before = Pt(0)
+        p_s.paragraph_format.space_after = Pt(1)
+        r_s = p_s.add_run(f"{{% if page.sub{idx_num} %}}{{{{ page.sub{idx_num} }}}}{{% endif %}}")
+        r_s.font.name = "Calibri"
+        r_s.font.size = Pt(8.5)
+        r_s.font.bold = True
 
-    p_i = tbl_l6.rows[0].cells[1].paragraphs[0]
-    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
+        p_i = cell.add_paragraph()
+        p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_i.paragraph_format.space_before = Pt(0)
+        p_i.paragraph_format.space_after = Pt(1)
+        p_i.add_run(f"{{% if page.img{idx_num} %}}{{{{ page.img{idx_num} }}}}{{% endif %}}")
 
-    p_i = tbl_l6.rows[0].cells[2].paragraphs[0]
-    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i.add_run("{% if page.img3 %}{{ page.img3 }}{% endif %}")
+        p_c = cell.add_paragraph()
+        p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_c.paragraph_format.space_before = Pt(0)
+        p_c.paragraph_format.space_after = Pt(2)
+        r_c = p_c.add_run(f"{{% if page.cap{idx_num} %}}{{{{ page.cap{idx_num} }}}}{{% endif %}}")
+        r_c.font.name = "Calibri"
+        r_c.font.size = Pt(8)
 
     # Row 2 (img4, img5, img6)
-    p_i = tbl_l6.rows[1].cells[0].paragraphs[0]
-    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i.add_run("{% if page.img4 %}{{ page.img4 }}{% endif %}")
+    for idx_c, idx_num in enumerate([4, 5, 6]):
+        cell = tbl_l6.rows[1].cells[idx_c]
+        p_s = cell.paragraphs[0]
+        p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_s.paragraph_format.space_before = Pt(0)
+        p_s.paragraph_format.space_after = Pt(1)
+        r_s = p_s.add_run(f"{{% if page.sub{idx_num} %}}{{{{ page.sub{idx_num} }}}}{{% endif %}}")
+        r_s.font.name = "Calibri"
+        r_s.font.size = Pt(8.5)
+        r_s.font.bold = True
 
-    p_i = tbl_l6.rows[1].cells[1].paragraphs[0]
-    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i.add_run("{% if page.img5 %}{{ page.img5 }}{% endif %}")
+        p_i = cell.add_paragraph()
+        p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_i.paragraph_format.space_before = Pt(0)
+        p_i.paragraph_format.space_after = Pt(1)
+        p_i.add_run(f"{{% if page.img{idx_num} %}}{{{{ page.img{idx_num} }}}}{{% endif %}}")
 
-    p_i = tbl_l6.rows[1].cells[2].paragraphs[0]
-    p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i.add_run("{% if page.img6 %}{{ page.img6 }}{% endif %}")
+        p_c = cell.add_paragraph()
+        p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_c.paragraph_format.space_before = Pt(0)
+        p_c.paragraph_format.space_after = Pt(2)
+        r_c = p_c.add_run(f"{{% if page.cap{idx_num} %}}{{{{ page.cap{idx_num} }}}}{{% endif %}}")
+        r_c.font.name = "Calibri"
+        r_c.font.size = Pt(8)
 
     p_l6_end = doc.add_paragraph()
     p_l6_end.add_run("{% endif %}")

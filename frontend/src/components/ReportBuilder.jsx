@@ -36,6 +36,8 @@ import {
   LayoutGrid
 } from 'lucide-react';
 
+const API_BASE = 'http://127.0.0.1:8000';
+
 const INITIAL_SECTIONS_CONFIG = [
   {
     title: "3. Civil",
@@ -122,16 +124,6 @@ const ReportBuilder = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState(null);
   const [generatedReport, setGeneratedReport] = useState(null);
-
-  // Auto-dismiss status messages after 3.5 seconds
-  useEffect(() => {
-    if (statusMessage) {
-      const timer = setTimeout(() => {
-        setStatusMessage(null);
-      }, 3500);
-      return () => clearTimeout(timer);
-    }
-  }, [statusMessage]);
 
   // Hidden File Input References
   const replaceFileRef = useRef(null);
@@ -945,9 +937,8 @@ const ReportBuilder = () => {
   };
 
   // ---------------- API EXPORT & DIRECT BLOB DOWNLOAD HANDLERS ----------------
-  const API_BASE = import.meta.env.VITE_API_URL || '';
-
   const handleSubmitReport = async () => {
+    setStatusMessage(null);
     if (!formData.substation_id.trim()) {
       setStatusMessage({ type: 'error', text: 'Substation ID is required!' });
       return;
@@ -956,6 +947,7 @@ const ReportBuilder = () => {
     setUploading(true);
     setUploadProgress(0);
     setStatusMessage(null);
+    setGeneratedReport(null);
 
     try {
       const payloadObj = {
@@ -994,11 +986,13 @@ const ReportBuilder = () => {
             const img = imgList[iIdx];
             let fileToUpload = img.file;
 
-            if (!fileToUpload && img.previewUrl) {
+            if (!fileToUpload && img.previewUrl && (img.previewUrl.startsWith('blob:') || img.previewUrl.startsWith('data:'))) {
               try {
                 const res = await fetch(img.previewUrl);
-                const blob = await res.blob();
-                fileToUpload = new File([blob], `photo_s${sIdx}_p${pIdx}_i${iIdx}.jpg`, { type: 'image/jpeg' });
+                if (res.ok) {
+                  const blob = await res.blob();
+                  fileToUpload = new File([blob], `photo_s${sIdx}_p${pIdx}_i${iIdx}.jpg`, { type: 'image/jpeg' });
+                }
               } catch (fetchErr) {
                 console.error("Failed to fetch image blob:", fetchErr);
               }
@@ -1021,10 +1015,22 @@ const ReportBuilder = () => {
       setGeneratedReport(response.data);
       setStatusMessage({ type: 'success', text: 'Report generated successfully with auto-fit page layouts! Click below to download Word or PDF.' });
     } catch (err) {
-      console.error(err);
+      console.error("Submission error:", err);
+      let errorText = 'Failed to submit inspection report. Please verify server connection.';
+      if (err.response && err.response.data) {
+        if (typeof err.response.data === 'string') {
+          errorText = err.response.data;
+        } else if (err.response.data.error) {
+          errorText = err.response.data.error;
+        } else if (err.response.data.detail) {
+          errorText = err.response.data.detail;
+        } else {
+          errorText = JSON.stringify(err.response.data);
+        }
+      }
       setStatusMessage({ 
         type: 'error', 
-        text: err.response?.data?.error || 'Failed to submit inspection report. Please verify server connection.' 
+        text: errorText 
       });
     } finally {
       setUploading(false);
@@ -1063,18 +1069,27 @@ const ReportBuilder = () => {
 
       setStatusMessage({ type: 'success', text: `${format.toUpperCase()} downloaded successfully to your device!` });
     } catch (err) {
-      console.error(err);
-      if (format === 'pdf') {
-        setStatusMessage({ 
-          type: 'error', 
-          text: 'PDF conversion requires LibreOffice installed on host. You can download the Word (.docx) report directly!' 
-        });
-      } else {
-        setStatusMessage({ 
-          type: 'error', 
-          text: `Failed to download ${format.toUpperCase()} file. Please check server.` 
-        });
+      console.error("Download error:", err);
+      let errorMsg = `Failed to download ${format.toUpperCase()} file. Please check server.`;
+      if (err.response && err.response.status === 404) {
+        errorMsg = `Report record not found in database. Please click 'Compile & Build Report' to generate a fresh report.`;
+      } else if (err.response && err.response.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.error) {
+            errorMsg = parsed.error;
+          } else if (parsed.detail) {
+            errorMsg = parsed.detail;
+          }
+        } catch (e) {
+          // ignore parsing error
+        }
       }
+      setStatusMessage({ 
+        type: 'error', 
+        text: errorMsg
+      });
     } finally {
       setDownloadingFormat(null);
     }

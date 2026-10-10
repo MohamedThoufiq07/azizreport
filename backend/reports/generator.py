@@ -38,25 +38,48 @@ def find_libreoffice_executable():
 from PIL import Image as PILImage
 
 
-def fit_image_dims(image_path, max_w_in, max_h_in):
+def fit_image_dims(image_path, max_w_in, max_h_in, crop_to_fill=False):
     """
     Computes proportional width and height preserving aspect ratio
     strictly bounded by max_w_in and max_h_in so content never overflows the page.
+    If crop_to_fill is True, crops the image from center to match target bounding ratio.
     """
     try:
+        if crop_to_fill:
+            target_aspect = max_w_in / float(max_h_in)
+            with PILImage.open(image_path) as im:
+                orig_w, orig_h = im.size
+                orig_aspect = orig_w / float(orig_h)
+
+                if abs(orig_aspect - target_aspect) > 0.05:
+                    if orig_aspect > target_aspect:
+                        # Image is wider than target ratio -> crop left & right
+                        new_w = int(orig_h * target_aspect)
+                        left = (orig_w - new_w) // 2
+                        box = (left, 0, left + new_w, orig_h)
+                    else:
+                        # Image is taller than target ratio -> crop top & bottom
+                        new_h = int(orig_w / target_aspect)
+                        top = (orig_h - new_h) // 2
+                        box = (0, top, orig_w, top + new_h)
+
+                    cropped_im = im.crop(box)
+                    cropped_path = image_path.rsplit('.', 1)[0] + '_fitcrop.jpg'
+                    cropped_im.save(cropped_path, 'JPEG', quality=95)
+                    image_path = cropped_path
+
         with PILImage.open(image_path) as im:
             orig_w, orig_h = im.size
         aspect = orig_w / float(orig_h)
-        # Try scaling by width first
         w = max_w_in
         h = w / aspect
         if h > max_h_in:
             h = max_h_in
             w = h * aspect
-        return Inches(round(w, 2)), Inches(round(h, 2))
+        return Inches(round(w, 2)), Inches(round(h, 2)), image_path
     except Exception as e:
         print(f"Notice: Failed to calculate image aspect ratio for {image_path}: {e}")
-        return Inches(max_w_in), Inches(max_h_in)
+        return Inches(max_w_in), Inches(max_h_in), image_path
 
 
 def generate_report_docx(report, template_path, output_docx_path):
@@ -110,11 +133,16 @@ def generate_report_docx(report, template_path, output_docx_path):
 
             is_first_page_of_section = (p_idx == 0)
 
-            # Valid image items that exist on disk
-            valid_images = [
-                img for img in p_images 
-                if img.image and os.path.exists(img.image.path)
-            ]
+            # Valid image items that exist on disk and are readable images
+            valid_images = []
+            for img in p_images:
+                if img.image and os.path.exists(img.image.path):
+                    try:
+                        with PILImage.open(img.image.path) as im:
+                            im.verify()
+                        valid_images.append(img)
+                    except Exception as img_err:
+                        print(f"Notice: Image file {img.image.path} is invalid/corrupted: {img_err}")
 
             num_imgs = len(valid_images)
 
@@ -129,38 +157,38 @@ def generate_report_docx(report, template_path, output_docx_path):
             if num_imgs == 1:
                 page_dict['layout'] = '1_full'
                 i1 = valid_images[0]
-                w, h = fit_image_dims(i1.image.path, 6.8, 5.2)
-                page_dict['img1'] = InlineImage(doc, i1.image.path, width=w, height=h)
+                w, h, img_path = fit_image_dims(i1.image.path, 6.5, 6.0, crop_to_fill=False)
+                page_dict['img1'] = InlineImage(doc, img_path, width=w, height=h)
                 page_dict['sub1'] = i1.subtitle or ""
                 page_dict['cap1'] = i1.caption or ""
 
             elif num_imgs == 2:
-                # 2 Photos Stacked Vertically (Matches Screenshot 2)
+                # 2 Photos Stacked Vertically (Matches Screenshot 2 & User Image 1)
                 page_dict['layout'] = '2_stack'
                 i1, i2 = valid_images[0], valid_images[1]
-                w1, h1 = fit_image_dims(i1.image.path, 6.8, 3.45)
-                w2, h2 = fit_image_dims(i2.image.path, 6.8, 3.45)
-                page_dict['img1'] = InlineImage(doc, i1.image.path, width=w1, height=h1)
+                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, 3.4, crop_to_fill=False)
+                w2, h2, path2 = fit_image_dims(i2.image.path, 6.5, 3.4, crop_to_fill=False)
+                page_dict['img1'] = InlineImage(doc, path1, width=w1, height=h1)
                 page_dict['sub1'] = i1.subtitle or ""
                 page_dict['cap1'] = i1.caption or ""
-                page_dict['img2'] = InlineImage(doc, i2.image.path, width=w2, height=h2)
+                page_dict['img2'] = InlineImage(doc, path2, width=w2, height=h2)
                 page_dict['sub2'] = i2.subtitle or ""
                 page_dict['cap2'] = i2.caption or ""
 
             elif num_imgs == 3:
-                # 3 Photos Hybrid: 1 Top + 2 Bottom Side-by-Side (Matches Screenshot 3)
+                # 3 Photos Hybrid: 1 Top + 2 Bottom Side-by-Side (Matches Screenshot 3 & User Image 3)
                 page_dict['layout'] = '3_hybrid'
                 i1, i2, i3 = valid_images[0], valid_images[1], valid_images[2]
-                w1, h1 = fit_image_dims(i1.image.path, 6.2, 3.35)
-                w2, h2 = fit_image_dims(i2.image.path, 3.3, 2.75)
-                w3, h3 = fit_image_dims(i3.image.path, 3.3, 2.75)
-                page_dict['img1'] = InlineImage(doc, i1.image.path, width=w1, height=h1)
+                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, 3.5, crop_to_fill=False)
+                w2, h2, path2 = fit_image_dims(i2.image.path, 3.1, 2.8, crop_to_fill=True)
+                w3, h3, path3 = fit_image_dims(i3.image.path, 3.1, 2.8, crop_to_fill=True)
+                page_dict['img1'] = InlineImage(doc, path1, width=w1, height=h1)
                 page_dict['sub1'] = i1.subtitle or ""
                 page_dict['cap1'] = i1.caption or ""
-                page_dict['img2'] = InlineImage(doc, i2.image.path, width=w2, height=h2)
+                page_dict['img2'] = InlineImage(doc, path2, width=w2, height=h2)
                 page_dict['sub2'] = i2.subtitle or ""
                 page_dict['cap2'] = i2.caption or ""
-                page_dict['img3'] = InlineImage(doc, i3.image.path, width=w3, height=h3)
+                page_dict['img3'] = InlineImage(doc, path3, width=w3, height=h3)
                 page_dict['sub3'] = i3.subtitle or ""
                 page_dict['cap3'] = i3.caption or ""
 
@@ -168,8 +196,8 @@ def generate_report_docx(report, template_path, output_docx_path):
                 # 4 Photos 2x2 Grid
                 page_dict['layout'] = '4_grid'
                 for idx_k, img_item in enumerate(valid_images[:4]):
-                    w, h = fit_image_dims(img_item.image.path, 3.3, 2.75)
-                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, img_item.image.path, width=w, height=h)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, 3.2, crop_to_fill=True)
+                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
 
@@ -178,24 +206,24 @@ def generate_report_docx(report, template_path, output_docx_path):
                 page_dict['layout'] = '5_grid'
                 for idx_k in range(2):
                     img_item = valid_images[idx_k]
-                    w, h = fit_image_dims(img_item.image.path, 3.3, 2.3)
-                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, img_item.image.path, width=w, height=h)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, 2.8, crop_to_fill=True)
+                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
                 for idx_k in range(2, 5):
                     img_item = valid_images[idx_k]
-                    w, h = fit_image_dims(img_item.image.path, 2.2, 2.3)
-                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, img_item.image.path, width=w, height=h)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 2.0, 2.5, crop_to_fill=True)
+                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
 
             elif num_imgs == 6:
-                # 6 Photos: 2 Rows of 3
+                # 6 Photos: 2 Rows of 3 (Matches User Image 2)
                 page_dict['layout'] = '6_grid'
                 for idx_k in range(6):
                     img_item = valid_images[idx_k]
-                    w, h = fit_image_dims(img_item.image.path, 2.2, 2.2)
-                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, img_item.image.path, width=w, height=h)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 2.1, 2.8, crop_to_fill=True)
+                    page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
 
@@ -207,11 +235,11 @@ def generate_report_docx(report, template_path, output_docx_path):
                     row_data = {}
                     i_a = valid_images[r_i]
                     i_b = valid_images[r_i + 1] if (r_i + 1) < num_imgs else None
-                    w_a, h_a = fit_image_dims(i_a.image.path, 3.3, 2.0)
-                    row_data['img1'] = InlineImage(doc, i_a.image.path, width=w_a, height=h_a)
+                    w_a, h_a, path_a = fit_image_dims(i_a.image.path, 3.1, 3.0, crop_to_fill=True)
+                    row_data['img1'] = InlineImage(doc, path_a, width=w_a, height=h_a)
                     if i_b:
-                        w_b, h_b = fit_image_dims(i_b.image.path, 3.3, 2.0)
-                        row_data['img2'] = InlineImage(doc, i_b.image.path, width=w_b, height=h_b)
+                        w_b, h_b, path_b = fit_image_dims(i_b.image.path, 3.1, 3.0, crop_to_fill=True)
+                        row_data['img2'] = InlineImage(doc, path_b, width=w_b, height=h_b)
                     gen_rows.append(row_data)
                 page_dict['generic_rows'] = gen_rows
             else:
@@ -283,14 +311,33 @@ def convert_docx_to_pdf(docx_path, output_dir):
             '--outdir', output_dir,
             docx_path
         ]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=40)
-        if result.returncode == 0 and os.path.exists(expected_pdf_path):
-            print(f"[SUCCESS] Successfully converted PDF via LibreOffice: {expected_pdf_path}")
-            return expected_pdf_path
-        else:
-            print(f"LibreOffice returncode={result.returncode}, stderr={result.stderr}")
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60)
+            if result.returncode == 0 and os.path.exists(expected_pdf_path):
+                print(f"[SUCCESS] Successfully converted PDF via LibreOffice: {expected_pdf_path}")
+                return expected_pdf_path
+            else:
+                print(f"LibreOffice profile run failed (rc={result.returncode}), attempting simple run...")
+        except Exception as err:
+            print(f"LibreOffice profile run exception: {err}")
 
-    # Engine 2: Fallback to docx2pdf if LibreOffice is missing
+        # Fallback 1b: Simple LibreOffice command without custom profile
+        cmd_simple = [
+            libreoffice_bin,
+            '--headless',
+            '--convert-to', 'pdf',
+            '--outdir', output_dir,
+            docx_path
+        ]
+        try:
+            result_s = subprocess.run(cmd_simple, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60)
+            if result_s.returncode == 0 and os.path.exists(expected_pdf_path):
+                print(f"[SUCCESS] Successfully converted PDF via simple LibreOffice: {expected_pdf_path}")
+                return expected_pdf_path
+        except Exception as err:
+            print(f"LibreOffice simple run exception: {err}")
+
+    # Engine 2: Fallback to docx2pdf (MS Word automation)
     try:
         from docx2pdf import convert
         convert(docx_path, expected_pdf_path)
@@ -300,7 +347,9 @@ def convert_docx_to_pdf(docx_path, output_dir):
     except Exception as e:
         print(f"Notice: docx2pdf engine attempt: {e}")
 
+    if os.path.exists(expected_pdf_path):
+        return expected_pdf_path
+
     raise RuntimeError(
-        "PDF conversion requires LibreOffice installed on system. "
-        "Please verify LibreOffice installation."
+        "PDF conversion requires LibreOffice or MS Word installed on host system."
     )
