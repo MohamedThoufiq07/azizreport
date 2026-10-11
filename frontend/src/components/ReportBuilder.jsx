@@ -36,11 +36,7 @@ import {
   LayoutGrid
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE || (
-  typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://127.0.0.1:8000'
-    : 'https://azizreport-backend.onrender.com'
-);
+const API_BASE = 'http://127.0.0.1:8000';
 
 const INITIAL_SECTIONS_CONFIG = [
   {
@@ -909,12 +905,12 @@ const ReportBuilder = () => {
       badge: "1 Large"
     };
     if (imgCount === 2) return {
-      title: "2 Photos Stacked (Screenshot 2 Match)",
+      title: "2 Photos Stacked",
       desc: "Photo 1 on top, Photo 2 below — large vertical fit within single page with uniform gap",
       badge: "2 Stacked"
     };
     if (imgCount === 3) return {
-      title: "3 Photos Hybrid (Screenshot 3 Match)",
+      title: "3 Photos Hybrid",
       desc: "1 large photo on top + 2 photos side-by-side below — perfectly fits single page",
       badge: "3 Hybrid"
     };
@@ -1608,7 +1604,7 @@ const ReportBuilder = () => {
                           </div>
 
                           {/* A4 DOCUMENT PAGE CONTAINER */}
-                          <div className="bg-white rounded-lg border-2 border-[#00AEEF] p-4 shadow-sm relative overflow-hidden text-slate-800 text-[11px] max-w-xl mx-auto">
+                          <div className="report-page bg-white border-2 border-[#00AEEF] shadow-sm text-slate-800 text-[11px] max-w-xl mx-auto">
                             {/* Page Header Table Mockup */}
                             <div className="border border-slate-900 grid grid-cols-12 text-center text-[9px] font-bold mb-3 bg-white">
                               <div className="col-span-4 p-1.5 border-r border-slate-900 text-rose-700 flex flex-col justify-center">
@@ -1648,75 +1644,19 @@ const ReportBuilder = () => {
                               </div>
                             )}
 
-                            {/* Dynamic Photo Layout matching Screenshots */}
+                            {/* Preserve every selected photo and its full aspect ratio. */}
                             {activePageImgCount === 0 ? (
-                              <div className="h-32 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-slate-400 text-xs text-center p-4">
-                                No photos added to Page {activePageIdx + 1} yet.<br />Use the uploader below to add photos.
-                              </div>
-                            ) : activePageImgCount === 1 ? (
-                              /* 1 Photo: Full page large centered */
-                              <div className="w-full h-56 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
-                                <img src={activePage.images[0].previewUrl} alt="Page Photo" className="w-full h-full object-cover" />
-                              </div>
-                            ) : activePageImgCount === 2 ? (
-                              /* 2 Photos: 2 Stacked Photos Vertically (Exact match for Screenshot 2) */
-                              <div className="space-y-2">
-                                <div className="w-full h-36 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                  <img src={activePage.images[0].previewUrl} alt="Photo 1" className="w-full h-full object-cover" />
-                                </div>
-                                <div className="w-full h-36 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                  <img src={activePage.images[1].previewUrl} alt="Photo 2" className="w-full h-full object-cover" />
-                                </div>
-                              </div>
-                            ) : activePageImgCount === 3 ? (
-                              /* 3 Photos: 1 Top + 2 Bottom Side-by-Side (Exact match for Screenshot 3) */
-                              <div className="space-y-2">
-                                <div className="w-full h-36 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                  <img src={activePage.images[0].previewUrl} alt="Photo 1" className="w-full h-full object-cover" />
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                    <img src={activePage.images[1].previewUrl} alt="Photo 2" className="w-full h-full object-cover" />
-                                  </div>
-                                  <div className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                    <img src={activePage.images[2].previewUrl} alt="Photo 3" className="w-full h-full object-cover" />
-                                  </div>
-                                </div>
-                              </div>
-                            ) : activePageImgCount === 4 ? (
-                              /* 4 Photos: 2x2 Grid */
-                              <div className="grid grid-cols-2 gap-2">
-                                {activePage.images.slice(0, 4).map((img, idx) => (
-                                  <div key={idx} className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                    <img src={img.previewUrl} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-                                  </div>
-                                ))}
-                              </div>
-                            ) : activePageImgCount === 5 ? (
-                              /* 5 Photos: 2 Top + 3 Bottom */
-                              <div className="space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                  {activePage.images.slice(0, 2).map((img, idx) => (
-                                    <div key={idx} className="h-24 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                      <img src={img.previewUrl} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-                                    </div>
-                                  ))}
-                                </div>
-                                <div className="grid grid-cols-3 gap-2">
-                                  {activePage.images.slice(2, 5).map((img, idx) => (
-                                    <div key={idx} className="h-20 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                      <img src={img.previewUrl} alt={`Photo ${idx + 3}`} className="w-full h-full object-cover" />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
+                              <div className="report-empty">No photos added to this page yet.</div>
                             ) : (
-                              /* 6 Photos: 2x3 Grid */
-                              <div className="grid grid-cols-3 gap-2">
-                                {activePage.images.slice(0, 6).map((img, idx) => (
-                                  <div key={idx} className="h-20 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                                    <img src={img.previewUrl} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-                                  </div>
+                              <div className={`report-photo-layout report-photo-layout--${Math.min(activePageImgCount, 7)}`}>
+                                {activePage.images.map((img, idx) => (
+                                  <figure key={img.id || idx} className="report-photo">
+                                    {img.subtitle && <div className="report-photo-subtitle">{img.subtitle}</div>}
+                                    <div className="report-photo-frame">
+                                      <img src={img.previewUrl} alt={img.caption || `Photo ${idx + 1}`} />
+                                    </div>
+                                    {img.caption && <figcaption>{img.caption}</figcaption>}
+                                  </figure>
                                 ))}
                               </div>
                             )}

@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import uuid
 from pathlib import Path
+import math
+import textwrap
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Inches
 
@@ -154,10 +156,22 @@ def generate_report_docx(report, template_path, output_docx_path):
                 'notes': formatted_notes,
             }
 
+            # Reserve space for the actual text rather than using fixed photo heights.
+            section = doc.get_docx().sections[0]
+            body_height = (section.page_height - section.top_margin - section.bottom_margin) / 914400
+            text_height = 0.55 + (0.45 if is_first_page_of_section else 0) + (0.4 if subtitle else 0)
+            text_height += sum(max(1, len(textwrap.wrap(n['text'], 85))) * 0.23 + 0.08 for n in formatted_notes)
+            rows = 1 if num_imgs <= 1 else (2 if num_imgs <= 6 else math.ceil(num_imgs / 2))
+            columns = 1 if num_imgs <= 2 else (3 if num_imgs in (5, 6) else 2)
+            chars = max(20, int(85 / columns))
+            label_lines = max((max(1, len(textwrap.wrap(i.subtitle or '', chars))) +
+                               max(1, len(textwrap.wrap(i.caption or '', chars))) for i in valid_images), default=2)
+            row_height = max(0.35, (body_height - text_height - rows * (label_lines * 0.17 + 0.2)) / rows)
+
             if num_imgs == 1:
                 page_dict['layout'] = '1_full'
                 i1 = valid_images[0]
-                w, h, img_path = fit_image_dims(i1.image.path, 6.5, 6.0, crop_to_fill=False)
+                w, h, img_path = fit_image_dims(i1.image.path, 6.5, row_height, crop_to_fill=False)
                 page_dict['img1'] = InlineImage(doc, img_path, width=w, height=h)
                 page_dict['sub1'] = i1.subtitle or ""
                 page_dict['cap1'] = i1.caption or ""
@@ -166,8 +180,8 @@ def generate_report_docx(report, template_path, output_docx_path):
                 # 2 Photos Stacked Vertically (Matches Screenshot 2 & User Image 1)
                 page_dict['layout'] = '2_stack'
                 i1, i2 = valid_images[0], valid_images[1]
-                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, 3.4, crop_to_fill=False)
-                w2, h2, path2 = fit_image_dims(i2.image.path, 6.5, 3.4, crop_to_fill=False)
+                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, row_height, crop_to_fill=False)
+                w2, h2, path2 = fit_image_dims(i2.image.path, 6.5, row_height, crop_to_fill=False)
                 page_dict['img1'] = InlineImage(doc, path1, width=w1, height=h1)
                 page_dict['sub1'] = i1.subtitle or ""
                 page_dict['cap1'] = i1.caption or ""
@@ -179,9 +193,9 @@ def generate_report_docx(report, template_path, output_docx_path):
                 # 3 Photos Hybrid: 1 Top + 2 Bottom Side-by-Side (Matches Screenshot 3 & User Image 3)
                 page_dict['layout'] = '3_hybrid'
                 i1, i2, i3 = valid_images[0], valid_images[1], valid_images[2]
-                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, 3.5, crop_to_fill=False)
-                w2, h2, path2 = fit_image_dims(i2.image.path, 3.1, 2.8, crop_to_fill=True)
-                w3, h3, path3 = fit_image_dims(i3.image.path, 3.1, 2.8, crop_to_fill=True)
+                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, row_height, crop_to_fill=False)
+                w2, h2, path2 = fit_image_dims(i2.image.path, 3.1, row_height, crop_to_fill=False)
+                w3, h3, path3 = fit_image_dims(i3.image.path, 3.1, row_height, crop_to_fill=False)
                 page_dict['img1'] = InlineImage(doc, path1, width=w1, height=h1)
                 page_dict['sub1'] = i1.subtitle or ""
                 page_dict['cap1'] = i1.caption or ""
@@ -196,7 +210,7 @@ def generate_report_docx(report, template_path, output_docx_path):
                 # 4 Photos 2x2 Grid
                 page_dict['layout'] = '4_grid'
                 for idx_k, img_item in enumerate(valid_images[:4]):
-                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, 3.2, crop_to_fill=True)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, row_height, crop_to_fill=False)
                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
@@ -206,13 +220,13 @@ def generate_report_docx(report, template_path, output_docx_path):
                 page_dict['layout'] = '5_grid'
                 for idx_k in range(2):
                     img_item = valid_images[idx_k]
-                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, 2.8, crop_to_fill=True)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, row_height, crop_to_fill=False)
                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
                 for idx_k in range(2, 5):
                     img_item = valid_images[idx_k]
-                    w, h, final_path = fit_image_dims(img_item.image.path, 2.0, 2.5, crop_to_fill=True)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 2.0, row_height, crop_to_fill=False)
                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
@@ -222,7 +236,7 @@ def generate_report_docx(report, template_path, output_docx_path):
                 page_dict['layout'] = '6_grid'
                 for idx_k in range(6):
                     img_item = valid_images[idx_k]
-                    w, h, final_path = fit_image_dims(img_item.image.path, 2.1, 2.8, crop_to_fill=True)
+                    w, h, final_path = fit_image_dims(img_item.image.path, 2.1, row_height, crop_to_fill=False)
                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
@@ -235,10 +249,14 @@ def generate_report_docx(report, template_path, output_docx_path):
                     row_data = {}
                     i_a = valid_images[r_i]
                     i_b = valid_images[r_i + 1] if (r_i + 1) < num_imgs else None
-                    w_a, h_a, path_a = fit_image_dims(i_a.image.path, 3.1, 3.0, crop_to_fill=True)
+                    w_a, h_a, path_a = fit_image_dims(i_a.image.path, 3.1, row_height, crop_to_fill=False)
+                    row_data['sub1'] = i_a.subtitle or ''
+                    row_data['cap1'] = i_a.caption or ''
                     row_data['img1'] = InlineImage(doc, path_a, width=w_a, height=h_a)
                     if i_b:
-                        w_b, h_b, path_b = fit_image_dims(i_b.image.path, 3.1, 3.0, crop_to_fill=True)
+                        w_b, h_b, path_b = fit_image_dims(i_b.image.path, 3.1, row_height, crop_to_fill=False)
+                        row_data['sub2'] = i_b.subtitle or ''
+                        row_data['cap2'] = i_b.caption or ''
                         row_data['img2'] = InlineImage(doc, path_b, width=w_b, height=h_b)
                     gen_rows.append(row_data)
                 page_dict['generic_rows'] = gen_rows
@@ -268,7 +286,7 @@ def generate_report_docx(report, template_path, output_docx_path):
         'pages': pages_data,
     }
 
-    doc.render(context)
+    doc.render(context, autoescape=True)
     
     # Ensure directory exists and safe save
     os.makedirs(os.path.dirname(output_docx_path), exist_ok=True)

@@ -1,0 +1,516 @@
+--- a/backend/reports/generator.py
++++ b/backend/reports/generator.py
+@@ -3,6 +3,8 @@
+ import subprocess
+ import uuid
+ from pathlib import Path
++import math
++import textwrap
+ from docxtpl import DocxTemplate, InlineImage
+ from docx.shared import Inches
+ 
+@@ -154,10 +156,22 @@
+                 'notes': formatted_notes,
+             }
+ 
++            # Reserve space for the actual text rather than using fixed photo heights.
++            section = doc.get_docx().sections[0]
++            body_height = (section.page_height - section.top_margin - section.bottom_margin) / 914400
++            text_height = 0.55 + (0.45 if is_first_page_of_section else 0) + (0.4 if subtitle else 0)
++            text_height += sum(max(1, len(textwrap.wrap(n['text'], 85))) * 0.23 + 0.08 for n in formatted_notes)
++            rows = 1 if num_imgs <= 1 else (2 if num_imgs <= 6 else math.ceil(num_imgs / 2))
++            columns = 1 if num_imgs <= 2 else (3 if num_imgs in (5, 6) else 2)
++            chars = max(20, int(85 / columns))
++            label_lines = max((max(1, len(textwrap.wrap(i.subtitle or '', chars))) +
++                               max(1, len(textwrap.wrap(i.caption or '', chars))) for i in valid_images), default=2)
++            row_height = max(0.35, (body_height - text_height - rows * (label_lines * 0.17 + 0.2)) / rows)
++
+             if num_imgs == 1:
+                 page_dict['layout'] = '1_full'
+                 i1 = valid_images[0]
+-                w, h, img_path = fit_image_dims(i1.image.path, 6.5, 6.0, crop_to_fill=False)
++                w, h, img_path = fit_image_dims(i1.image.path, 6.5, row_height, crop_to_fill=False)
+                 page_dict['img1'] = InlineImage(doc, img_path, width=w, height=h)
+                 page_dict['sub1'] = i1.subtitle or ""
+                 page_dict['cap1'] = i1.caption or ""
+@@ -166,8 +180,8 @@
+                 # 2 Photos Stacked Vertically (Matches Screenshot 2 & User Image 1)
+                 page_dict['layout'] = '2_stack'
+                 i1, i2 = valid_images[0], valid_images[1]
+-                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, 3.4, crop_to_fill=False)
+-                w2, h2, path2 = fit_image_dims(i2.image.path, 6.5, 3.4, crop_to_fill=False)
++                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, row_height, crop_to_fill=False)
++                w2, h2, path2 = fit_image_dims(i2.image.path, 6.5, row_height, crop_to_fill=False)
+                 page_dict['img1'] = InlineImage(doc, path1, width=w1, height=h1)
+                 page_dict['sub1'] = i1.subtitle or ""
+                 page_dict['cap1'] = i1.caption or ""
+@@ -179,9 +193,9 @@
+                 # 3 Photos Hybrid: 1 Top + 2 Bottom Side-by-Side (Matches Screenshot 3 & User Image 3)
+                 page_dict['layout'] = '3_hybrid'
+                 i1, i2, i3 = valid_images[0], valid_images[1], valid_images[2]
+-                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, 3.5, crop_to_fill=False)
+-                w2, h2, path2 = fit_image_dims(i2.image.path, 3.1, 2.8, crop_to_fill=True)
+-                w3, h3, path3 = fit_image_dims(i3.image.path, 3.1, 2.8, crop_to_fill=True)
++                w1, h1, path1 = fit_image_dims(i1.image.path, 6.5, row_height, crop_to_fill=False)
++                w2, h2, path2 = fit_image_dims(i2.image.path, 3.1, row_height, crop_to_fill=False)
++                w3, h3, path3 = fit_image_dims(i3.image.path, 3.1, row_height, crop_to_fill=False)
+                 page_dict['img1'] = InlineImage(doc, path1, width=w1, height=h1)
+                 page_dict['sub1'] = i1.subtitle or ""
+                 page_dict['cap1'] = i1.caption or ""
+@@ -196,7 +210,7 @@
+                 # 4 Photos 2x2 Grid
+                 page_dict['layout'] = '4_grid'
+                 for idx_k, img_item in enumerate(valid_images[:4]):
+-                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, 3.2, crop_to_fill=True)
++                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, row_height, crop_to_fill=False)
+                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
+                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
+                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
+@@ -206,13 +220,13 @@
+                 page_dict['layout'] = '5_grid'
+                 for idx_k in range(2):
+                     img_item = valid_images[idx_k]
+-                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, 2.8, crop_to_fill=True)
++                    w, h, final_path = fit_image_dims(img_item.image.path, 3.1, row_height, crop_to_fill=False)
+                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
+                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
+                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
+                 for idx_k in range(2, 5):
+                     img_item = valid_images[idx_k]
+-                    w, h, final_path = fit_image_dims(img_item.image.path, 2.0, 2.5, crop_to_fill=True)
++                    w, h, final_path = fit_image_dims(img_item.image.path, 2.0, row_height, crop_to_fill=False)
+                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
+                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
+                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
+@@ -222,7 +236,7 @@
+                 page_dict['layout'] = '6_grid'
+                 for idx_k in range(6):
+                     img_item = valid_images[idx_k]
+-                    w, h, final_path = fit_image_dims(img_item.image.path, 2.1, 2.8, crop_to_fill=True)
++                    w, h, final_path = fit_image_dims(img_item.image.path, 2.1, row_height, crop_to_fill=False)
+                     page_dict[f'img{idx_k + 1}'] = InlineImage(doc, final_path, width=w, height=h)
+                     page_dict[f'sub{idx_k + 1}'] = img_item.subtitle or ""
+                     page_dict[f'cap{idx_k + 1}'] = img_item.caption or ""
+@@ -235,10 +249,14 @@
+                     row_data = {}
+                     i_a = valid_images[r_i]
+                     i_b = valid_images[r_i + 1] if (r_i + 1) < num_imgs else None
+-                    w_a, h_a, path_a = fit_image_dims(i_a.image.path, 3.1, 3.0, crop_to_fill=True)
++                    w_a, h_a, path_a = fit_image_dims(i_a.image.path, 3.1, row_height, crop_to_fill=False)
++                    row_data['sub1'] = i_a.subtitle or ''
++                    row_data['cap1'] = i_a.caption or ''
+                     row_data['img1'] = InlineImage(doc, path_a, width=w_a, height=h_a)
+                     if i_b:
+-                        w_b, h_b, path_b = fit_image_dims(i_b.image.path, 3.1, 3.0, crop_to_fill=True)
++                        w_b, h_b, path_b = fit_image_dims(i_b.image.path, 3.1, row_height, crop_to_fill=False)
++                        row_data['sub2'] = i_b.subtitle or ''
++                        row_data['cap2'] = i_b.caption or ''
+                         row_data['img2'] = InlineImage(doc, path_b, width=w_b, height=h_b)
+                     gen_rows.append(row_data)
+                 page_dict['generic_rows'] = gen_rows
+@@ -268,7 +286,7 @@
+         'pages': pages_data,
+     }
+ 
+-    doc.render(context)
++    doc.render(context, autoescape=True)
+     
+     # Ensure directory exists and safe save
+     os.makedirs(os.path.dirname(output_docx_path), exist_ok=True)
+--- a/backend/reports/build_template.py
++++ b/backend/reports/build_template.py
+@@ -131,7 +131,7 @@
+     section = doc.sections[0]
+     section.page_width = Inches(8.27)
+     section.page_height = Inches(11.69)
+-    section.top_margin = Inches(1.65)
++    section.top_margin = Inches(1.85)
+     section.bottom_margin = Inches(0.50)
+     section.left_margin = Inches(0.5)
+     section.right_margin = Inches(0.5)
+@@ -390,43 +390,45 @@
+     p_pg_loop_start = doc.add_paragraph()
+     p_pg_loop_start.paragraph_format.space_before = Pt(0)
+     p_pg_loop_start.paragraph_format.space_after = Pt(0)
+-    p_pg_loop_start.add_run("{% for page in pages %}")
++    p_pg_loop_start.add_run("{%p for page in pages %}")
+ 
+     # Add page break between pages
+     p_pb = doc.add_paragraph()
+     p_pb.paragraph_format.space_before = Pt(0)
+     p_pb.paragraph_format.space_after = Pt(0)
+-    p_pb.add_run("{% if not loop.first %}")
++    p_pb.add_run("{%p if not loop.first %}")
++    p_pb = doc.add_paragraph()
++    p_pb.paragraph_format.space_after = Pt(0)
+     p_pb.add_run()._r.append(parse_xml(r'<w:br %s w:type="page"/>' % nsdecls('w')))
+-    p_pb.add_run("{% endif %}")
++    doc.add_paragraph("{%p endif %}")
+ 
+     # Section Title Banner (Rendered on first page of a section)
+     p_sec_if = doc.add_paragraph()
+     p_sec_if.paragraph_format.space_before = Pt(0)
+     p_sec_if.paragraph_format.space_after = Pt(0)
+-    p_sec_if.add_run("{% if page.is_first_page_of_section and page.section_title %}")
++    p_sec_if.add_run("{%p if page.is_first_page_of_section and page.section_title %}")
+     add_blue_section_banner(doc, "{{ page.section_title }}", is_subtitle=False)
+     p_sec_end = doc.add_paragraph()
+     p_sec_end.paragraph_format.space_before = Pt(0)
+     p_sec_end.paragraph_format.space_after = Pt(2)
+-    p_sec_end.add_run("{% endif %}")
++    p_sec_end.add_run("{%p endif %}")
+ 
+     # Subtitle Banner (e.g. 3.1 Substation Outside or 3.2 SWITCH GEAR)
+     p_sub_if = doc.add_paragraph()
+     p_sub_if.paragraph_format.space_before = Pt(0)
+     p_sub_if.paragraph_format.space_after = Pt(0)
+-    p_sub_if.add_run("{% if page.subtitle %}")
++    p_sub_if.add_run("{%p if page.subtitle %}")
+     add_blue_section_banner(doc, "{{ page.subtitle }}", is_subtitle=True)
+     p_sub_end = doc.add_paragraph()
+     p_sub_end.paragraph_format.space_before = Pt(0)
+     p_sub_end.paragraph_format.space_after = Pt(4)
+-    p_sub_end.add_run("{% endif %}")
++    p_sub_end.add_run("{%p endif %}")
+ 
+     # Bullet point notes (if any on this page)
+     p_notes_if = doc.add_paragraph()
+-    p_notes_if.add_run("{% if page.notes %}")
++    p_notes_if.add_run("{%p if page.notes %}")
+     p_note_start = doc.add_paragraph()
+-    p_note_start.add_run("{% for note in page.notes %}")
++    p_note_start.add_run("{%p for note in page.notes %}")
+     p_note = doc.add_paragraph()
+     p_note.paragraph_format.space_before = Pt(2)
+     p_note.paragraph_format.space_after = Pt(4)
+@@ -436,13 +438,13 @@
+     r_n.font.size = Pt(11)
+     r_n.font.bold = True
+     p_note_end = doc.add_paragraph()
+-    p_note_end.add_run("{% endfor %}")
++    p_note_end.add_run("{%p endfor %}")
+     p_notes_endif = doc.add_paragraph()
+-    p_notes_endif.add_run("{% endif %}")
++    p_notes_endif.add_run("{%p endif %}")
+ 
+     # ================= LAYOUT 1: SINGLE FULL-WIDTH PHOTO =================
+     p_l1_if = doc.add_paragraph()
+-    p_l1_if.add_run("{% if page.layout == '1_full' %}")
++    p_l1_if.add_run("{%p if page.layout == '1_full' %}")
+ 
+     p_l1_sub = doc.add_paragraph()
+     p_l1_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+@@ -468,11 +470,11 @@
+     r_l1_c.font.size = Pt(8.5)
+ 
+     p_l1_end = doc.add_paragraph()
+-    p_l1_end.add_run("{% endif %}")
++    p_l1_end.add_run("{%p endif %}")
+ 
+     # ================= LAYOUT 2: 2 PHOTOS VERTICALLY STACKED (MATCHES SCREENSHOT 2) =================
+     p_l2_if = doc.add_paragraph()
+-    p_l2_if.add_run("{% if page.layout == '2_stack' %}")
++    p_l2_if.add_run("{%p if page.layout == '2_stack' %}")
+ 
+     # Top Photo (Photo 1)
+     p_l2_sub1 = doc.add_paragraph()
+@@ -523,11 +525,11 @@
+     r_l2_c2.font.size = Pt(8.5)
+ 
+     p_l2_end = doc.add_paragraph()
+-    p_l2_end.add_run("{% endif %}")
++    p_l2_end.add_run("{%p endif %}")
+ 
+     # ================= LAYOUT 3: 3 PHOTOS HYBRID (1 TOP + 2 BOTTOM - MATCHES SCREENSHOT 3) =================
+     p_l3_if = doc.add_paragraph()
+-    p_l3_if.add_run("{% if page.layout == '3_hybrid' %}")
++    p_l3_if.add_run("{%p if page.layout == '3_hybrid' %}")
+ 
+     # Row 1: Large Centered Top Photo
+     p_l3_sub1 = doc.add_paragraph()
+@@ -615,11 +617,11 @@
+     r_l3_c3.font.size = Pt(8)
+ 
+     p_l3_end = doc.add_paragraph()
+-    p_l3_end.add_run("{% endif %}")
++    p_l3_end.add_run("{%p endif %}")
+ 
+     # ================= LAYOUT 4: 4 PHOTOS (2x2 GRID) =================
+     p_l4_if = doc.add_paragraph()
+-    p_l4_if.add_run("{% if page.layout == '4_grid' %}")
++    p_l4_if.add_run("{%p if page.layout == '4_grid' %}")
+ 
+     tbl_l4 = doc.add_table(rows=2, cols=2)
+     tbl_l4.alignment = WD_TABLE_ALIGNMENT.CENTER
+@@ -690,11 +692,11 @@
+     r_c.font.size = Pt(8)
+ 
+     p_l4_end = doc.add_paragraph()
+-    p_l4_end.add_run("{% endif %}")
++    p_l4_end.add_run("{%p endif %}")
+ 
+     # ================= LAYOUT 5: 5 PHOTOS (2 TOP + 3 BOTTOM) =================
+     p_l5_if = doc.add_paragraph()
+-    p_l5_if.add_run("{% if page.layout == '5_grid' %}")
++    p_l5_if.add_run("{%p if page.layout == '5_grid' %}")
+ 
+     tbl_l5_r1 = doc.add_table(rows=1, cols=2)
+     tbl_l5_r1.alignment = WD_TABLE_ALIGNMENT.CENTER
+@@ -711,6 +713,8 @@
+     p_i = tbl_l5_r1.rows[0].cells[0].add_paragraph()
+     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+     p_i.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
++    cell = p_i._parent
++    cell.add_paragraph("{% if page.cap1 %}{{ page.cap1 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+ 
+     p_s = tbl_l5_r1.rows[0].cells[1].paragraphs[0]
+     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+@@ -718,6 +722,8 @@
+     p_i = tbl_l5_r1.rows[0].cells[1].add_paragraph()
+     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+     p_i.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
++    cell = p_i._parent
++    cell.add_paragraph("{% if page.cap2 %}{{ page.cap2 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+ 
+     tbl_l5_r2 = doc.add_table(rows=1, cols=3)
+     tbl_l5_r2.alignment = WD_TABLE_ALIGNMENT.CENTER
+@@ -734,6 +740,8 @@
+     p_i = tbl_l5_r2.rows[0].cells[0].add_paragraph()
+     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+     p_i.add_run("{% if page.img3 %}{{ page.img3 }}{% endif %}")
++    cell = p_i._parent
++    cell.add_paragraph("{% if page.cap3 %}{{ page.cap3 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+ 
+     p_s = tbl_l5_r2.rows[0].cells[1].paragraphs[0]
+     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+@@ -741,6 +749,8 @@
+     p_i = tbl_l5_r2.rows[0].cells[1].add_paragraph()
+     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+     p_i.add_run("{% if page.img4 %}{{ page.img4 }}{% endif %}")
++    cell = p_i._parent
++    cell.add_paragraph("{% if page.cap4 %}{{ page.cap4 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+ 
+     p_s = tbl_l5_r2.rows[0].cells[2].paragraphs[0]
+     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
+@@ -748,13 +758,15 @@
+     p_i = tbl_l5_r2.rows[0].cells[2].add_paragraph()
+     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
+     p_i.add_run("{% if page.img5 %}{{ page.img5 }}{% endif %}")
++    cell = p_i._parent
++    cell.add_paragraph("{% if page.cap5 %}{{ page.cap5 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+ 
+     p_l5_end = doc.add_paragraph()
+-    p_l5_end.add_run("{% endif %}")
++    p_l5_end.add_run("{%p endif %}")
+ 
+     # ================= LAYOUT 6: 6 PHOTOS (2 ROWS OF 3) =================
+     p_l6_if = doc.add_paragraph()
+-    p_l6_if.add_run("{% if page.layout == '6_grid' %}")
++    p_l6_if.add_run("{%p if page.layout == '6_grid' %}")
+ 
+     tbl_l6 = doc.add_table(rows=2, cols=3)
+     tbl_l6.alignment = WD_TABLE_ALIGNMENT.CENTER
+@@ -819,13 +831,13 @@
+         r_c.font.size = Pt(8)
+ 
+     p_l6_end = doc.add_paragraph()
+-    p_l6_end.add_run("{% endif %}")
++    p_l6_end.add_run("{%p endif %}")
+ 
+     # ================= LAYOUT GENERIC: GENERIC ROWS FALLBACK =================
+     p_gen_if = doc.add_paragraph()
+-    p_gen_if.add_run("{% if page.layout == 'generic' %}")
++    p_gen_if.add_run("{%p if page.layout == 'generic' %}")
+     p_gen_loop = doc.add_paragraph()
+-    p_gen_loop.add_run("{% for row in page.generic_rows %}")
++    p_gen_loop.add_run("{%p for row in page.generic_rows %}")
+ 
+     tbl_gen = doc.add_table(rows=1, cols=2)
+     tbl_gen.alignment = WD_TABLE_ALIGNMENT.CENTER
+@@ -839,19 +851,23 @@
+ 
+     p_i1 = c1.paragraphs[0]
+     p_i1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+-    p_i1.add_run("{% if row.img1 %}{{ row.img1 }}{% endif %}")
++    p_i1.add_run("{% if row.sub1 %}{{ row.sub1 }}{% endif %}")
++    c1.add_paragraph("{% if row.img1 %}{{ row.img1 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
++    c1.add_paragraph("{% if row.cap1 %}{{ row.cap1 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+ 
+     p_i2 = c2.paragraphs[0]
+     p_i2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+-    p_i2.add_run("{% if row.img2 %}{{ row.img2 }}{% endif %}")
++    p_i2.add_run("{% if row.sub2 %}{{ row.sub2 }}{% endif %}")
++    c2.add_paragraph("{% if row.img2 %}{{ row.img2 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
++    c2.add_paragraph("{% if row.cap2 %}{{ row.cap2 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+ 
+     p_gen_endloop = doc.add_paragraph()
+-    p_gen_endloop.add_run("{% endfor %}")
++    p_gen_endloop.add_run("{%p endfor %}")
+     p_gen_endif = doc.add_paragraph()
+-    p_gen_endif.add_run("{% endif %}")
++    p_gen_endif.add_run("{%p endif %}")
+ 
+     p_pg_loop_end = doc.add_paragraph()
+-    p_pg_loop_end.add_run("{% endfor %}")
++    p_pg_loop_end.add_run("{%p endfor %}")
+ 
+     # ---------------- END OF PROCEDURE MARKER ----------------
+     end_para = doc.add_paragraph()
+@@ -861,6 +877,22 @@
+     r_end.font.size = Pt(11)
+     r_end.font.bold = True
+ 
++    # Fixed columns, compact paragraphs and unbroken photo rows.
++    for table in doc.tables:
++        for row in table.rows:
++            row._tr.get_or_add_trPr().append(parse_xml(f'<w:cantSplit {nsdecls("w")}/>'))
++            for cell in row.cells:
++                cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
++                for p in cell.paragraphs:
++                    if "page.cap" in p.text or "row.cap" in p.text:
++                        for run in p.runs:
++                            run.font.name = "Calibri"
++                            run.font.size = Pt(8.5)
++                    p.paragraph_format.space_before = Pt(0)
++                    p.paragraph_format.space_after = Pt(2)
++    for p in doc.paragraphs:
++        if '{{ page.img' in p.text or '{{ page.sub' in p.text:
++            p.paragraph_format.keep_with_next = True
+     doc.save(output_path)
+     print(f"Successfully generated 100% photo-matched template DOCX at: {output_path}")
+ 
+--- a/frontend/src/components/ReportBuilder.jsx
++++ b/frontend/src/components/ReportBuilder.jsx
+@@ -905,12 +905,12 @@
+       badge: "1 Large"
+     };
+     if (imgCount === 2) return {
+-      title: "2 Photos Stacked (Screenshot 2 Match)",
++      title: "2 Photos Stacked",
+       desc: "Photo 1 on top, Photo 2 below — large vertical fit within single page with uniform gap",
+       badge: "2 Stacked"
+     };
+     if (imgCount === 3) return {
+-      title: "3 Photos Hybrid (Screenshot 3 Match)",
++      title: "3 Photos Hybrid",
+       desc: "1 large photo on top + 2 photos side-by-side below — perfectly fits single page",
+       badge: "3 Hybrid"
+     };
+@@ -1604,7 +1604,7 @@
+                           </div>
+ 
+                           {/* A4 DOCUMENT PAGE CONTAINER */}
+-                          <div className="bg-white rounded-lg border-2 border-[#00AEEF] p-4 shadow-sm relative overflow-hidden text-slate-800 text-[11px] max-w-xl mx-auto">
++                          <div className="report-page bg-white border-2 border-[#00AEEF] shadow-sm text-slate-800 text-[11px] max-w-xl mx-auto">
+                             {/* Page Header Table Mockup */}
+                             <div className="border border-slate-900 grid grid-cols-12 text-center text-[9px] font-bold mb-3 bg-white">
+                               <div className="col-span-4 p-1.5 border-r border-slate-900 text-rose-700 flex flex-col justify-center">
+@@ -1644,75 +1644,19 @@
+                               </div>
+                             )}
+ 
+-                            {/* Dynamic Photo Layout matching Screenshots */}
++                            {/* Preserve every selected photo and its full aspect ratio. */}
+                             {activePageImgCount === 0 ? (
+-                              <div className="h-32 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-slate-400 text-xs text-center p-4">
+-                                No photos added to Page {activePageIdx + 1} yet.<br />Use the uploader below to add photos.
+-                              </div>
+-                            ) : activePageImgCount === 1 ? (
+-                              /* 1 Photo: Full page large centered */
+-                              <div className="w-full h-56 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
+-                                <img src={activePage.images[0].previewUrl} alt="Page Photo" className="w-full h-full object-cover" />
+-                              </div>
+-                            ) : activePageImgCount === 2 ? (
+-                              /* 2 Photos: 2 Stacked Photos Vertically (Exact match for Screenshot 2) */
+-                              <div className="space-y-2">
+-                                <div className="w-full h-36 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                  <img src={activePage.images[0].previewUrl} alt="Photo 1" className="w-full h-full object-cover" />
+-                                </div>
+-                                <div className="w-full h-36 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                  <img src={activePage.images[1].previewUrl} alt="Photo 2" className="w-full h-full object-cover" />
+-                                </div>
+-                              </div>
+-                            ) : activePageImgCount === 3 ? (
+-                              /* 3 Photos: 1 Top + 2 Bottom Side-by-Side (Exact match for Screenshot 3) */
+-                              <div className="space-y-2">
+-                                <div className="w-full h-36 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                  <img src={activePage.images[0].previewUrl} alt="Photo 1" className="w-full h-full object-cover" />
+-                                </div>
+-                                <div className="grid grid-cols-2 gap-2">
+-                                  <div className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                    <img src={activePage.images[1].previewUrl} alt="Photo 2" className="w-full h-full object-cover" />
+-                                  </div>
+-                                  <div className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                    <img src={activePage.images[2].previewUrl} alt="Photo 3" className="w-full h-full object-cover" />
+-                                  </div>
+-                                </div>
+-                              </div>
+-                            ) : activePageImgCount === 4 ? (
+-                              /* 4 Photos: 2x2 Grid */
+-                              <div className="grid grid-cols-2 gap-2">
+-                                {activePage.images.slice(0, 4).map((img, idx) => (
+-                                  <div key={idx} className="h-28 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                    <img src={img.previewUrl} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+-                                  </div>
+-                                ))}
+-                              </div>
+-                            ) : activePageImgCount === 5 ? (
+-                              /* 5 Photos: 2 Top + 3 Bottom */
+-                              <div className="space-y-2">
+-                                <div className="grid grid-cols-2 gap-2">
+-                                  {activePage.images.slice(0, 2).map((img, idx) => (
+-                                    <div key={idx} className="h-24 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                      <img src={img.previewUrl} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
++                              <div className="report-empty">No photos added to this page yet.</div>
++                            ) : (
++                              <div className={`report-photo-layout report-photo-layout--${Math.min(activePageImgCount, 7)}`}>
++                                {activePage.images.map((img, idx) => (
++                                  <figure key={img.id || idx} className="report-photo">
++                                    {img.subtitle && <div className="report-photo-subtitle">{img.subtitle}</div>}
++                                    <div className="report-photo-frame">
++                                      <img src={img.previewUrl} alt={img.caption || `Photo ${idx + 1}`} />
+                                     </div>
+-                                  ))}
+-                                </div>
+-                                <div className="grid grid-cols-3 gap-2">
+-                                  {activePage.images.slice(2, 5).map((img, idx) => (
+-                                    <div key={idx} className="h-20 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                      <img src={img.previewUrl} alt={`Photo ${idx + 3}`} className="w-full h-full object-cover" />
+-                                    </div>
+-                                  ))}
+-                                </div>
+-                              </div>
+-                            ) : (
+-                              /* 6 Photos: 2x3 Grid */
+-                              <div className="grid grid-cols-3 gap-2">
+-                                {activePage.images.slice(0, 6).map((img, idx) => (
+-                                  <div key={idx} className="h-20 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+-                                    <img src={img.previewUrl} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+-                                  </div>
++                                    {img.caption && <figcaption>{img.caption}</figcaption>}
++                                  </figure>
+                                 ))}
+                               </div>
+                             )}
+--- a/frontend/src/index.css
++++ b/frontend/src/index.css
+@@ -28,3 +28,19 @@
+   outline: none;
+   box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.15);
+ }
++
++/* A4 preview: photo space grows with the page, text remains readable. */
++.report-page { aspect-ratio: 210 / 297; display: flex; flex-direction: column; padding: 4%; min-width: 0; }
++.report-page > :last-child { margin-top: auto; padding-top: 12px; }
++.report-photo-layout { flex: 1; min-height: 260px; display: grid; gap: 12px; grid-template-columns: repeat(6, minmax(0, 1fr)); align-content: stretch; }
++.report-photo { margin: 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; grid-column: span 3; }
++.report-photo-layout--1 .report-photo, .report-photo-layout--2 .report-photo { grid-column: span 6; }
++.report-photo-layout--3 .report-photo:first-child { grid-column: span 6; }
++.report-photo-layout--5 .report-photo:nth-child(n+3), .report-photo-layout--6 .report-photo { grid-column: span 2; }
++.report-photo-frame { flex: 1; min-height: 80px; display: flex; align-items: center; justify-content: center; background: #f8fafc; border: 1px solid #e2e8f0; }
++.report-photo-frame img { display: block; width: 100%; height: 100%; max-height: 310px; object-fit: contain; }
++.report-photo-layout--2 img, .report-photo-layout--3 img, .report-photo-layout--4 img { max-height: 180px; }
++.report-photo-layout--5 img, .report-photo-layout--6 img, .report-photo-layout--7 img { max-height: 145px; }
++.report-photo-subtitle { text-align: center; font-weight: 700; margin-bottom: 4px; overflow-wrap: anywhere; }
++.report-photo figcaption { font-size: 9px; text-align: center; margin-top: 4px; overflow-wrap: anywhere; }
++.report-empty { min-height: 180px; display: grid; place-items: center; color: #64748b; border: 1px dashed #cbd5e1; }

@@ -131,7 +131,7 @@ def create_template_docx(output_path="template.docx"):
     section = doc.sections[0]
     section.page_width = Inches(8.27)
     section.page_height = Inches(11.69)
-    section.top_margin = Inches(1.65)
+    section.top_margin = Inches(1.85)
     section.bottom_margin = Inches(0.50)
     section.left_margin = Inches(0.5)
     section.right_margin = Inches(0.5)
@@ -390,43 +390,45 @@ def create_template_docx(output_path="template.docx"):
     p_pg_loop_start = doc.add_paragraph()
     p_pg_loop_start.paragraph_format.space_before = Pt(0)
     p_pg_loop_start.paragraph_format.space_after = Pt(0)
-    p_pg_loop_start.add_run("{% for page in pages %}")
+    p_pg_loop_start.add_run("{%p for page in pages %}")
 
     # Add page break between pages
     p_pb = doc.add_paragraph()
     p_pb.paragraph_format.space_before = Pt(0)
     p_pb.paragraph_format.space_after = Pt(0)
-    p_pb.add_run("{% if not loop.first %}")
+    p_pb.add_run("{%p if not loop.first %}")
+    p_pb = doc.add_paragraph()
+    p_pb.paragraph_format.space_after = Pt(0)
     p_pb.add_run()._r.append(parse_xml(r'<w:br %s w:type="page"/>' % nsdecls('w')))
-    p_pb.add_run("{% endif %}")
+    doc.add_paragraph("{%p endif %}")
 
     # Section Title Banner (Rendered on first page of a section)
     p_sec_if = doc.add_paragraph()
     p_sec_if.paragraph_format.space_before = Pt(0)
     p_sec_if.paragraph_format.space_after = Pt(0)
-    p_sec_if.add_run("{% if page.is_first_page_of_section and page.section_title %}")
+    p_sec_if.add_run("{%p if page.is_first_page_of_section and page.section_title %}")
     add_blue_section_banner(doc, "{{ page.section_title }}", is_subtitle=False)
     p_sec_end = doc.add_paragraph()
     p_sec_end.paragraph_format.space_before = Pt(0)
     p_sec_end.paragraph_format.space_after = Pt(2)
-    p_sec_end.add_run("{% endif %}")
+    p_sec_end.add_run("{%p endif %}")
 
     # Subtitle Banner (e.g. 3.1 Substation Outside or 3.2 SWITCH GEAR)
     p_sub_if = doc.add_paragraph()
     p_sub_if.paragraph_format.space_before = Pt(0)
     p_sub_if.paragraph_format.space_after = Pt(0)
-    p_sub_if.add_run("{% if page.subtitle %}")
+    p_sub_if.add_run("{%p if page.subtitle %}")
     add_blue_section_banner(doc, "{{ page.subtitle }}", is_subtitle=True)
     p_sub_end = doc.add_paragraph()
     p_sub_end.paragraph_format.space_before = Pt(0)
     p_sub_end.paragraph_format.space_after = Pt(4)
-    p_sub_end.add_run("{% endif %}")
+    p_sub_end.add_run("{%p endif %}")
 
     # Bullet point notes (if any on this page)
     p_notes_if = doc.add_paragraph()
-    p_notes_if.add_run("{% if page.notes %}")
+    p_notes_if.add_run("{%p if page.notes %}")
     p_note_start = doc.add_paragraph()
-    p_note_start.add_run("{% for note in page.notes %}")
+    p_note_start.add_run("{%p for note in page.notes %}")
     p_note = doc.add_paragraph()
     p_note.paragraph_format.space_before = Pt(2)
     p_note.paragraph_format.space_after = Pt(4)
@@ -436,13 +438,13 @@ def create_template_docx(output_path="template.docx"):
     r_n.font.size = Pt(11)
     r_n.font.bold = True
     p_note_end = doc.add_paragraph()
-    p_note_end.add_run("{% endfor %}")
+    p_note_end.add_run("{%p endfor %}")
     p_notes_endif = doc.add_paragraph()
-    p_notes_endif.add_run("{% endif %}")
+    p_notes_endif.add_run("{%p endif %}")
 
     # ================= LAYOUT 1: SINGLE FULL-WIDTH PHOTO =================
     p_l1_if = doc.add_paragraph()
-    p_l1_if.add_run("{% if page.layout == '1_full' %}")
+    p_l1_if.add_run("{%p if page.layout == '1_full' %}")
 
     p_l1_sub = doc.add_paragraph()
     p_l1_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -468,11 +470,11 @@ def create_template_docx(output_path="template.docx"):
     r_l1_c.font.size = Pt(8.5)
 
     p_l1_end = doc.add_paragraph()
-    p_l1_end.add_run("{% endif %}")
+    p_l1_end.add_run("{%p endif %}")
 
     # ================= LAYOUT 2: 2 PHOTOS VERTICALLY STACKED (MATCHES SCREENSHOT 2) =================
     p_l2_if = doc.add_paragraph()
-    p_l2_if.add_run("{% if page.layout == '2_stack' %}")
+    p_l2_if.add_run("{%p if page.layout == '2_stack' %}")
 
     # Top Photo (Photo 1)
     p_l2_sub1 = doc.add_paragraph()
@@ -523,11 +525,11 @@ def create_template_docx(output_path="template.docx"):
     r_l2_c2.font.size = Pt(8.5)
 
     p_l2_end = doc.add_paragraph()
-    p_l2_end.add_run("{% endif %}")
+    p_l2_end.add_run("{%p endif %}")
 
     # ================= LAYOUT 3: 3 PHOTOS HYBRID (1 TOP + 2 BOTTOM - MATCHES SCREENSHOT 3) =================
     p_l3_if = doc.add_paragraph()
-    p_l3_if.add_run("{% if page.layout == '3_hybrid' %}")
+    p_l3_if.add_run("{%p if page.layout == '3_hybrid' %}")
 
     # Row 1: Large Centered Top Photo
     p_l3_sub1 = doc.add_paragraph()
@@ -615,11 +617,11 @@ def create_template_docx(output_path="template.docx"):
     r_l3_c3.font.size = Pt(8)
 
     p_l3_end = doc.add_paragraph()
-    p_l3_end.add_run("{% endif %}")
+    p_l3_end.add_run("{%p endif %}")
 
     # ================= LAYOUT 4: 4 PHOTOS (2x2 GRID) =================
     p_l4_if = doc.add_paragraph()
-    p_l4_if.add_run("{% if page.layout == '4_grid' %}")
+    p_l4_if.add_run("{%p if page.layout == '4_grid' %}")
 
     tbl_l4 = doc.add_table(rows=2, cols=2)
     tbl_l4.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -690,11 +692,11 @@ def create_template_docx(output_path="template.docx"):
     r_c.font.size = Pt(8)
 
     p_l4_end = doc.add_paragraph()
-    p_l4_end.add_run("{% endif %}")
+    p_l4_end.add_run("{%p endif %}")
 
     # ================= LAYOUT 5: 5 PHOTOS (2 TOP + 3 BOTTOM) =================
     p_l5_if = doc.add_paragraph()
-    p_l5_if.add_run("{% if page.layout == '5_grid' %}")
+    p_l5_if.add_run("{%p if page.layout == '5_grid' %}")
 
     tbl_l5_r1 = doc.add_table(rows=1, cols=2)
     tbl_l5_r1.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -711,6 +713,8 @@ def create_template_docx(output_path="template.docx"):
     p_i = tbl_l5_r1.rows[0].cells[0].add_paragraph()
     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_i.add_run("{% if page.img1 %}{{ page.img1 }}{% endif %}")
+    cell = p_i._parent
+    cell.add_paragraph("{% if page.cap1 %}{{ page.cap1 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     p_s = tbl_l5_r1.rows[0].cells[1].paragraphs[0]
     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -718,6 +722,8 @@ def create_template_docx(output_path="template.docx"):
     p_i = tbl_l5_r1.rows[0].cells[1].add_paragraph()
     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_i.add_run("{% if page.img2 %}{{ page.img2 }}{% endif %}")
+    cell = p_i._parent
+    cell.add_paragraph("{% if page.cap2 %}{{ page.cap2 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     tbl_l5_r2 = doc.add_table(rows=1, cols=3)
     tbl_l5_r2.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -734,6 +740,8 @@ def create_template_docx(output_path="template.docx"):
     p_i = tbl_l5_r2.rows[0].cells[0].add_paragraph()
     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_i.add_run("{% if page.img3 %}{{ page.img3 }}{% endif %}")
+    cell = p_i._parent
+    cell.add_paragraph("{% if page.cap3 %}{{ page.cap3 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     p_s = tbl_l5_r2.rows[0].cells[1].paragraphs[0]
     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -741,6 +749,8 @@ def create_template_docx(output_path="template.docx"):
     p_i = tbl_l5_r2.rows[0].cells[1].add_paragraph()
     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_i.add_run("{% if page.img4 %}{{ page.img4 }}{% endif %}")
+    cell = p_i._parent
+    cell.add_paragraph("{% if page.cap4 %}{{ page.cap4 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     p_s = tbl_l5_r2.rows[0].cells[2].paragraphs[0]
     p_s.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -748,13 +758,15 @@ def create_template_docx(output_path="template.docx"):
     p_i = tbl_l5_r2.rows[0].cells[2].add_paragraph()
     p_i.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_i.add_run("{% if page.img5 %}{{ page.img5 }}{% endif %}")
+    cell = p_i._parent
+    cell.add_paragraph("{% if page.cap5 %}{{ page.cap5 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     p_l5_end = doc.add_paragraph()
-    p_l5_end.add_run("{% endif %}")
+    p_l5_end.add_run("{%p endif %}")
 
     # ================= LAYOUT 6: 6 PHOTOS (2 ROWS OF 3) =================
     p_l6_if = doc.add_paragraph()
-    p_l6_if.add_run("{% if page.layout == '6_grid' %}")
+    p_l6_if.add_run("{%p if page.layout == '6_grid' %}")
 
     tbl_l6 = doc.add_table(rows=2, cols=3)
     tbl_l6.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -819,13 +831,13 @@ def create_template_docx(output_path="template.docx"):
         r_c.font.size = Pt(8)
 
     p_l6_end = doc.add_paragraph()
-    p_l6_end.add_run("{% endif %}")
+    p_l6_end.add_run("{%p endif %}")
 
     # ================= LAYOUT GENERIC: GENERIC ROWS FALLBACK =================
     p_gen_if = doc.add_paragraph()
-    p_gen_if.add_run("{% if page.layout == 'generic' %}")
+    p_gen_if.add_run("{%p if page.layout == 'generic' %}")
     p_gen_loop = doc.add_paragraph()
-    p_gen_loop.add_run("{% for row in page.generic_rows %}")
+    p_gen_loop.add_run("{%p for row in page.generic_rows %}")
 
     tbl_gen = doc.add_table(rows=1, cols=2)
     tbl_gen.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -839,19 +851,23 @@ def create_template_docx(output_path="template.docx"):
 
     p_i1 = c1.paragraphs[0]
     p_i1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i1.add_run("{% if row.img1 %}{{ row.img1 }}{% endif %}")
+    p_i1.add_run("{% if row.sub1 %}{{ row.sub1 }}{% endif %}")
+    c1.add_paragraph("{% if row.img1 %}{{ row.img1 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    c1.add_paragraph("{% if row.cap1 %}{{ row.cap1 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     p_i2 = c2.paragraphs[0]
     p_i2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_i2.add_run("{% if row.img2 %}{{ row.img2 }}{% endif %}")
+    p_i2.add_run("{% if row.sub2 %}{{ row.sub2 }}{% endif %}")
+    c2.add_paragraph("{% if row.img2 %}{{ row.img2 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    c2.add_paragraph("{% if row.cap2 %}{{ row.cap2 }}{% endif %}").alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     p_gen_endloop = doc.add_paragraph()
-    p_gen_endloop.add_run("{% endfor %}")
+    p_gen_endloop.add_run("{%p endfor %}")
     p_gen_endif = doc.add_paragraph()
-    p_gen_endif.add_run("{% endif %}")
+    p_gen_endif.add_run("{%p endif %}")
 
     p_pg_loop_end = doc.add_paragraph()
-    p_pg_loop_end.add_run("{% endfor %}")
+    p_pg_loop_end.add_run("{%p endfor %}")
 
     # ---------------- END OF PROCEDURE MARKER ----------------
     end_para = doc.add_paragraph()
@@ -861,6 +877,22 @@ def create_template_docx(output_path="template.docx"):
     r_end.font.size = Pt(11)
     r_end.font.bold = True
 
+    # Fixed columns, compact paragraphs and unbroken photo rows.
+    for table in doc.tables:
+        for row in table.rows:
+            row._tr.get_or_add_trPr().append(parse_xml(f'<w:cantSplit {nsdecls("w")}/>'))
+            for cell in row.cells:
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+                for p in cell.paragraphs:
+                    if "page.cap" in p.text or "row.cap" in p.text:
+                        for run in p.runs:
+                            run.font.name = "Calibri"
+                            run.font.size = Pt(8.5)
+                    p.paragraph_format.space_before = Pt(0)
+                    p.paragraph_format.space_after = Pt(2)
+    for p in doc.paragraphs:
+        if '{{ page.img' in p.text or '{{ page.sub' in p.text:
+            p.paragraph_format.keep_with_next = True
     doc.save(output_path)
     print(f"Successfully generated 100% photo-matched template DOCX at: {output_path}")
 
